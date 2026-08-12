@@ -1,0 +1,9 @@
+HONORABLE UI PREVIEW STATUS
+
+Implemented HTML recreations: Home, Memories/search/indexing, Search Results,
+Terms AI, Terms Analysis, Subscription, Settings. Use the top-right theme toggle
+for light/dark variants. Native onboarding, permissions, viewer, activity,
+privacy, sign-in, and empty/error screens remain represented by architecture/UI
+patterns but are not individual HTML preview pages yet.
+
+Open ui-previews/index.html in any modern browser. No server is required.
