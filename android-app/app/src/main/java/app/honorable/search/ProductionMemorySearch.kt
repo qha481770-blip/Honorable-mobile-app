@@ -74,7 +74,7 @@ class AndroidMediaIndexer(private val context:Context,private val database:Local
     private suspend fun recognize(bitmap:Bitmap):String=suspendCancellableCoroutine { continuation ->
         val client=TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);client.process(InputImage.fromBitmap(bitmap,0)).addOnSuccessListener{continuation.resume(it.text)}.addOnFailureListener{continuation.resume("")}.addOnCompleteListener{client.close()}
     }
-    private suspend fun label(bitmap:Bitmap):Set<String>=suspendCancellableCoroutine { continuation ->
+    private suspend fun label(bitmap:Bitmap):Set<String> = suspendCancellableCoroutine { continuation ->
         val client=ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS);client.process(InputImage.fromBitmap(bitmap,0)).addOnSuccessListener{labels->continuation.resume(labels.filter{it.confidence>=.55f}.mapTo(linkedSetOf()){it.text.lowercase()})}.addOnFailureListener{continuation.resume(emptySet())}.addOnCompleteListener{client.close()}
     }
     private fun sampleColors(bitmap:Bitmap):Set<String>{val w=bitmap.width;val h=bitmap.height;if(w==0||h==0)return emptySet();val pixels=IntArray(256){i->bitmap.getPixel((i%16*w/16).coerceAtMost(w-1),(i/16*h/16).coerceAtMost(h-1))};return ColorEvidenceAnalyzer.dominantColors(pixels)}
