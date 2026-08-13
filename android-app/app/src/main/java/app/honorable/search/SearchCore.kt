@@ -20,8 +20,16 @@ data class MediaRecord(
     val longitude: Double? = null,
     val uri: String = "",
     val displayName: String = "",
-    val durationMs: Long? = null
+    val durationMs: Long? = null,
+    val visionUnderstanding: VisionUnderstanding? = null
 )
+
+data class VisionUnderstanding(
+    val caption:String="",val objects:Set<String> = emptySet(),val activities:Set<String> = emptySet(),
+    val scenes:Set<String> = emptySet(),val colors:Set<String> = emptySet(),val clothing:Set<String> = emptySet(),
+    val environment:Set<String> = emptySet(),val textualContext:Set<String> = emptySet(),val attributes:Set<String> = emptySet(),
+    val modelId:String,val analysisVersion:Int=1,val analyzedAtEpochMs:Long=0,val analysisTimeMs:Long=0
+) { fun terms()=objects+activities+scenes+colors+clothing+environment+textualContext+attributes }
 
 enum class MediaKind { IMAGE, VIDEO }
 enum class MediaSubtype { SCREENSHOT }
@@ -34,7 +42,8 @@ data class VideoFrame(
     val labels: Set<String>,
     val embedding: FloatArray?,
     val dominantColors: Set<String> = emptySet(),
-    val sceneFingerprint: Long? = null
+    val sceneFingerprint: Long? = null,
+    val visionUnderstanding: VisionUnderstanding? = null
 )
 
 data class SearchQuery(
@@ -65,7 +74,11 @@ data class ScoreBreakdown(
     val labels: Double = 0.0,
     val colors: Double = 0.0,
     val videoFrames: Double = 0.0,
-    val negativePenalty: Double = 0.0
+    val negativePenalty: Double = 0.0,
+    val vlmCaption: Double = 0.0,
+    val vlmObjects: Double = 0.0,
+    val vlmActivities: Double = 0.0,
+    val vlmScenes: Double = 0.0
 )
 
 data class SearchMatch(
@@ -171,8 +184,8 @@ class QueryParser(private val clock: Clock = Clock.systemDefaultZone()) {
         private val IMAGE_WORDS = setOf("photo","photos","picture","pictures","image","images")
         private val NEGATION_WORDS = setOf("without","not","exclude","excluding","no")
         private val PEOPLE = setOf("person","people","someone","son","daughter","child","children","man","woman","family")
-        private val OBJECTS = setOf("car","vehicle","cake","shirt","dress","ball","burger","fries","dog","airplane","plane","passport","meal")
-        private val ACTIVITY_ALIASES = mapOf("playing" to "playing", "serves" to "serving", "serve" to "serving", "running" to "running", "laughing" to "laughing", "holding" to "holding", "parked" to "parked")
+        private val OBJECTS = setOf("car","vehicle","cake","shirt","dress","shoe","shoes","ball","burger","fries","dog","cat","airplane","plane","passport","meal","food","document")
+        private val ACTIVITY_ALIASES = mapOf("playing" to "playing", "serves" to "serving", "serve" to "serving", "running" to "running", "dancing" to "dancing", "walking" to "walking", "laughing" to "laughing", "holding" to "holding", "parked" to "parked")
         private val SCENE_ALIASES = mapOf("outside" to "outdoor", "outdoors" to "outdoor", "indoors" to "indoor", "inside" to "indoor", "snow" to "snow", "water" to "water", "beach" to "beach", "restaurant" to "restaurant", "grass" to "grass", "sunset" to "sunset", "night" to "night")
         private val STOP_WORDS = setOf("find","show","the","a","an","where","my","was","is","are","of","with","that","this","only","taken","showing","from","around","in","at","by","on","near","wearing") + NEGATION_WORDS
         private val TEMPORAL_WORDS = setOf("today","yesterday","last","week","month","summer","christmas","two","years","ago","morning","night","evening")
@@ -256,12 +269,29 @@ class SearchRanker(private val weights: RankingWeights = RankingWeights(), priva
         if (frameEvidence.score > 0) explanations += "Matched video scene at ${formatTimestamp(frameEvidence.bestTimestampMs!!)}"
         val negativeHits = q.negativeTerms.count { negative -> normalizedLabels.any { fuzzy(negative, it) } || normalizedMetadata.any { fuzzy(negative, it) } }
         val negativePenalty = negativeHits * weights.negative
-        val total = semantic * weights.fullSemantic + conceptScore + ocrScore + labelScore + metadataScore + colorScore + frameEvidence.score - negativePenalty
+        val vlm = scoreVision(q, media.visionUnderstanding)
+        if (vlm.total > 0) explanations += "Visual AI: ${media.visionUnderstanding!!.caption}"
+        val total = semantic * weights.fullSemantic + conceptScore + ocrScore + labelScore + metadataScore + colorScore + frameEvidence.score + vlm.total - negativePenalty
         if (labelMatches.isNotEmpty()) explanations += "Matched: ${labelMatches.take(3).joinToString(" • ")}"
         if (media.kind == MediaKind.VIDEO) explanations += "Matched: video"
         val confidence = when { total >= 7.0 -> MatchConfidence.STRONG; total >= 2.5 -> MatchConfidence.POSSIBLE; else -> MatchConfidence.WEAK }
         return SearchMatch(media, total, explanations.toList(), frameEvidence.bestTimestampMs, confidence,
-            ScoreBreakdown(semantic, conceptScore, ocrScore, metadataScore, labelScore, colorScore, frameEvidence.score, negativePenalty))
+            ScoreBreakdown(semantic, conceptScore, ocrScore, metadataScore, labelScore, colorScore, frameEvidence.score, negativePenalty,
+                vlm.caption, vlm.objects, vlm.activities, vlm.scenes))
+    }
+
+    private fun scoreVision(q: SearchQuery, vision: VisionUnderstanding?): VisionEvidence {
+        if (vision == null) return VisionEvidence()
+        val caption = OcrNormalizer.normalize(vision.caption)
+        fun matches(values:Set<String>, terms:Collection<String>) = terms.count { term -> values.any { fuzzy(term, it) } }.toDouble()
+        val captionCoverage = if (q.terms.isEmpty()) 0.0 else q.terms.count { OcrNormalizer.containsFuzzyToken(caption, it) }.toDouble() / q.terms.size
+        val objectScore = matches(vision.objects, q.objects.ifEmpty { q.terms.toSet() }) * 1.35
+        val activityScore = matches(vision.activities, q.activities.ifEmpty { q.terms.toSet() }) * 1.15
+        val sceneScore = matches(vision.scenes + vision.environment, q.scenes.ifEmpty { q.terms.toSet() }) * .90
+        val visualColor = matches(vision.colors, q.colors) * .70
+        // Coverage rewards a description satisfying the whole request; no single lexical hit can dominate TinyCLIP.
+        val coverageBonus = if (q.terms.size > 1 && captionCoverage >= .99) .85 else 0.0
+        return VisionEvidence(captionCoverage * 1.10 + coverageBonus, objectScore, activityScore, sceneScore + visualColor)
     }
 
     private fun scoreFrames(q: SearchQuery, frames: List<VideoFrame>, vector: FloatArray?, concepts: Map<String, FloatArray>): FrameEvidence {
@@ -272,7 +302,8 @@ class SearchRanker(private val weights: RankingWeights = RankingWeights(), priva
         }
         val scores = distinct.map { frame ->
             val text = OcrNormalizer.normalize(frame.ocr)
-            val lexical = q.terms.count { term -> OcrNormalizer.containsFuzzyToken(text, term) || frame.labels.any { fuzzy(term, it) } } * 1.2
+            val vision=scoreVision(q,frame.visionUnderstanding)
+            val lexical = q.terms.count { term -> OcrNormalizer.containsFuzzyToken(text, term) || frame.labels.any { fuzzy(term, it) } } * 1.2 + vision.total
             val full = if (vector != null && frame.embedding != null) cosine(vector, frame.embedding).coerceAtLeast(0.0) else 0.0
             val coverage = if (concepts.isEmpty() || frame.embedding == null) 0.0 else concepts.values.count { cosine(it, frame.embedding) >= CONCEPT_THRESHOLD }.toDouble() / concepts.size
             frame to (lexical + full + coverage)
@@ -283,6 +314,7 @@ class SearchRanker(private val weights: RankingWeights = RankingWeights(), priva
     }
 
     private data class FrameEvidence(val score: Double = 0.0, val bestTimestampMs: Long? = null)
+    private data class VisionEvidence(val caption:Double=0.0,val objects:Double=0.0,val activities:Double=0.0,val scenes:Double=0.0){val total get()=caption+objects+activities+scenes}
     companion object {
         private const val CONCEPT_THRESHOLD = 0.20
         private const val MIN_FRAME_GAP_MS = 1_500L
@@ -330,5 +362,7 @@ object SearchDebugTool {
         appendLine("semantic=${match.breakdown.fullSemantic}");appendLine("conceptCoverage=${match.breakdown.conceptCoverage}")
         appendLine("ocr=${match.breakdown.ocr}");appendLine("metadata=${match.breakdown.metadata}");appendLine("labels=${match.breakdown.labels}")
         appendLine("colors=${match.breakdown.colors}");appendLine("videoFrames=${match.breakdown.videoFrames}");appendLine("final=${match.score}")
+        appendLine("vlmCaption=${match.breakdown.vlmCaption}");appendLine("vlmObjects=${match.breakdown.vlmObjects}")
+        appendLine("vlmActivities=${match.breakdown.vlmActivities}");appendLine("vlmScenes=${match.breakdown.vlmScenes}")
     }
 }

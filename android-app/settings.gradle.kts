@@ -7,3 +7,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "Honorable"
 include(":app")
+include(":test-lab")
