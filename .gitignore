@@ -12,3 +12,7 @@ release-builds/ios/*.ipa
 *.keystore
 *.p12
 *.mobileprovision
+/test-media/*
+!/test-media/README.md
+!/test-media/evaluation.example.json
+/android-app/test-lab/models/

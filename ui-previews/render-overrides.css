@@ -1,0 +1,41 @@
+/* Blueglass Editorial render is intentionally self-contained in render.css. */
+
+.focus-submit { margin-top: 12px; }
+
+/* Bubble Glass: bold composition inside soft floating blue forms. */
+.screen::before { content:""; position:absolute; width:220px; height:220px; right:-115px; top:135px; border-radius:50%; background:radial-gradient(circle at 34% 32%,rgba(156,226,255,.18),rgba(13,152,222,.06) 48%,transparent 72%); pointer-events:none; }
+.monogram,.close-box,.seal,.submit,.match-index,.duration,.timecode { border-radius:999px !important; }
+.archive-hero { border-radius:0 0 54px 54px; overflow:hidden; }
+.archive-search,.primary-action,.local-note,.tag,.query-caption { border-radius:999px; }
+.archive-search { margin-left:16px; margin-right:16px; overflow:hidden; }
+.archive-search .submit { width:58px; height:58px; margin-right:7px; flex:0 0 58px; }
+.primary-action { margin-left:16px; margin-right:16px; padding:8px 9px 8px 22px; min-height:64px; }
+.primary-action span { display:grid; place-items:center; width:48px; height:48px; border-radius:50%; background:rgba(4,44,74,.22); }
+.feature-ledger { gap:10px; padding:10px 12px; background:transparent; }
+.ledger-item { border:1px solid rgba(126,207,244,.25) !important; border-radius:42px; background:linear-gradient(145deg,rgba(30,135,188,.15),rgba(7,44,72,.08)); padding:18px 16px; }
+.ledger-item .index-no { display:inline-grid; place-items:center; min-width:54px; min-height:28px; padding:0 10px; border-radius:999px; background:rgba(26,169,228,.13); }
+.privacy-ledger { margin:10px 16px; border:1px solid rgba(126,207,244,.25); border-radius:999px; padding:10px; }
+.ticker { gap:7px; }
+.contact-sheet,.more-results { gap:10px; padding-left:16px; padding-right:16px; }
+.memory { border-radius:30px; overflow:hidden; }
+.media-no { border-radius:50%; width:28px; height:28px; display:grid; place-items:center; padding:0 !important; }
+.best-result { margin:8px 16px 0; width:calc(100% - 32px); border-radius:46px; overflow:hidden; border:1px solid rgba(126,207,244,.3); }
+.best-result .match-index,.best-result .duration { padding:9px 13px; }
+.best-result .result-copy { inset:auto 22px 22px; }
+.rail { left:12px; right:12px; bottom:8px; width:auto; height:76px; border:1px solid rgba(126,207,244,.28); border-radius:999px; overflow:hidden; box-shadow:0 18px 44px rgba(0,117,187,.22); }
+.rail span { margin:5px 2px; border:0 !important; border-radius:999px; }
+.rail .active { background:rgba(21,154,217,.22); }
+.rail .active::before { display:none; }
+.import-grid { gap:9px; }
+.import-grid>div { border-radius:36px; overflow:hidden; }
+.risk-hero,.summary-slab,.disclosure,.timeline-row,.setting-group,.upgrade-slab,.plans .plan,.benefit,.privacy-node,.progress-meta,.empty-suggestions { border-radius:32px; overflow:hidden; }
+.disclosures,.timeline,.setting-group,.benefit-list { display:grid; gap:8px; }
+.setting-row,.disclosure,.benefit { border:1px solid rgba(126,207,244,.22) !important; border-radius:999px; margin:0; }
+.setting-icon,.num,.index-no { border-radius:50%; }
+.node-grid { gap:10px; }
+.privacy-node { border:1px solid rgba(126,207,244,.25) !important; min-height:100px; }
+.upgrade-slab { margin-left:16px; margin-right:16px; border-radius:48px; }
+.plans { gap:10px; }
+.plans .plan { border-radius:40px; }
+.progress-track { border-radius:999px; overflow:hidden; }
+.empty-suggestions { display:flex; gap:7px; padding:8px; background:rgba(16,112,165,.09); }

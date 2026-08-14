@@ -1,0 +1,12 @@
+{
+  "name": "honorable-marketing-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Separate, privacy-conscious pre-launch marketing and waitlist system for Honorable.",
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "test": "node --test --test-isolation=none"
+  },
+  "engines": { "node": ">=20" }
+}

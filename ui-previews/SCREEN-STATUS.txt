@@ -1,9 +1,22 @@
-HONORABLE UI PREVIEW STATUS
+Honorable “Blueglass Bubbles” UI review — circular development recreations exploring the Android art direction; Compose remains source of truth.
 
-Implemented HTML recreations: Home, Memories/search/indexing, Search Results,
-Terms AI, Terms Analysis, Subscription, Settings. Use the top-right theme toggle
-for light/dark variants. Native onboarding, permissions, viewer, activity,
-privacy, sign-in, and empty/error screens remain represented by architecture/UI
-patterns but are not individual HTML preview pages yet.
+01 Home — IMPLEMENTED — Monumental hero, circular private-search action, bubble routes, and capsule navigation.
+02 Memories — IMPLEMENTED — Natural-language library search with a graphic contact-sheet rhythm.
+03 Search Focus — IMPLEMENTED — Full-screen query composition with one real search action.
+04 AI Searching — IMPLEMENTED — Cinematic local scanner state and privacy signal.
+05 Search Results — IMPLEMENTED — One dominant best match followed by an optional contact sheet.
+06 Video Results — IMPLEMENTED — Best video moment with a visible timestamp and supporting matches.
+07 Media Viewer — IMPLEMENTED — Full-bleed real media with restrained blueglass metadata.
+08 Terms AI — IMPLEMENTED — Oversized agreement-intelligence cover and numbered import routes.
+09 Terms Result — IMPLEMENTED — Editorial risk verdict and structured disclosures.
+10 Activity — IMPLEMENTED — Ruled chronological intelligence ledger.
+11 Settings — IMPLEMENTED — Sharp private-intelligence controls and an electric-blue upgrade slab.
+12 Privacy — IMPLEMENTED — Monumental privacy promise with local-processing evidence.
+13 Honorable Plus — IMPLEMENTED — Premium presentation only; billing remains unconfigured.
+14 Indexing — PARTIAL — Determinate local-index visualization; no new indexing backend.
+15 Empty Search — IMPLEMENTED — High-contrast low-confidence guidance and a real refine route.
+16 Dark Home — IMPLEMENTED — Deep-navy blueglass home treatment.
+17 Dark Memories — IMPLEMENTED — Deep-navy memory-intelligence treatment.
+18 Dark Terms AI — IMPLEMENTED — Deep-navy agreement-intelligence treatment.
 
-Open ui-previews/index.html in any modern browser. No server is required.
+Before references: before/home.png and before/memories.png are previous gallery renders from the preceding UI.

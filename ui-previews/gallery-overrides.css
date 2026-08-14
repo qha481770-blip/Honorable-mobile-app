@@ -1,0 +1,7 @@
+/* Blueglass gallery styling is intentionally self-contained in gallery.css. */
+
+.card { border-radius:34px; backdrop-filter:blur(22px); }
+.legend span,.meta em { border-radius:999px; }
+dialog { border-radius:38px; }
+dialog button { border-radius:50%; }
+dialog img { border-radius:28px; }

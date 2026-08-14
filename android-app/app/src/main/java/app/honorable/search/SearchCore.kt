@@ -96,7 +96,7 @@ interface VideoAnalysisService { fun representativeFrames(uri: String, cancellat
 interface MediaIndexer { fun synchronize(cancellation: () -> Boolean, paused: () -> Boolean): IndexStats }
 interface VectorIndex { fun upsert(id: Long, vector: FloatArray); fun nearest(vector: FloatArray, limit: Int): List<Pair<Long, Double>> }
 data class IndexStats(val added: Int, val updated: Int, val deleted: Int)
-data class IndexCompatibility(val schemaVersion: Int = 4, val modelId: String = TinyClipEmbeddingService.MODEL_ID, val embeddingDimension: Int = 512, val preprocessingVersion: String = "tinyclip-clip-v1") {
+data class IndexCompatibility(val schemaVersion: Int = 5, val modelId: String = TinyClipEmbeddingService.MODEL_ID, val embeddingDimension: Int = 512, val preprocessingVersion: String = "tinyclip-clip-v1") {
     fun compatibleWith(other: IndexCompatibility?) = other != null && schemaVersion == other.schemaVersion && modelId == other.modelId && embeddingDimension == other.embeddingDimension && preprocessingVersion == other.preprocessingVersion
 }
 
@@ -324,7 +324,8 @@ class SearchRanker(private val weights: RankingWeights = RankingWeights(), priva
     }
 }
 
-class TinyClipEmbeddingService : EmbeddingService {
+/** Platform-neutral unavailable fallback. Android production uses [AndroidTinyClipEmbeddingService]. */
+open class TinyClipEmbeddingService : EmbeddingService {
     companion object { const val MODEL_ID = "TinyCLIP-ViT-8M-16-Text-3M-YFCC15M-int8" }
     override val modelId = MODEL_ID; override val dimension = 512
     override fun image(bytes: ByteArray): FloatArray? = null // A validated Android-compatible ONNX asset is required.

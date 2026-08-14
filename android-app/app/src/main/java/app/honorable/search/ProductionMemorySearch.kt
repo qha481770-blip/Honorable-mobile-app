@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
@@ -27,6 +28,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
+import java.io.ByteArrayOutputStream
 
 data class IndexProgress(val processed:Int=0,val total:Int=0)
 sealed interface MemorySearchState {
@@ -39,18 +41,20 @@ sealed interface MemorySearchState {
 
 data class DiscoveredMedia(val id:Long,val uri:String,val kind:MediaKind,val capturedAt:Long,val modifiedAt:Long,val name:String,val durationMs:Long?)
 
-class AndroidMediaIndexer(private val context:Context,private val database:LocalMediaDatabase) {
+class AndroidMediaIndexer(private val context:Context,private val database:LocalMediaDatabase,private val embeddings:EmbeddingService) {
     private val resolver=context.contentResolver
     suspend fun synchronize(progress:(IndexProgress)->Unit):IndexStats=withContext(Dispatchers.IO) {
-        val discovered=discover();val known=database.modifiedTimes();var added=0;var updated=0;var processed=0
+        val discovered=discover();val known=database.modifiedTimes();val cached=database.records().associateBy{it.uri};var added=0;var updated=0;var processed=0
         discovered.forEach { item ->
             if(known[item.uri]!=item.modifiedAt) {
                 val bitmap=thumbnail(item)
                 val screenshot=item.name.contains("screenshot",true)
                 val labels=bitmap?.let{label(it)}?:emptySet()
                 val colors=bitmap?.let{sampleColors(it)}?:emptySet()
-                val ocr=if(screenshot&&bitmap!=null) recognize(bitmap) else ""
-                database.upsert(MediaRecord(item.id,item.kind,item.capturedAt,ocr=ocr,labels=labels,metadataTerms=setOf(item.name,if(item.kind==MediaKind.VIDEO)"video" else "photo"),dominantColors=colors,isScreenshot=screenshot,uri=item.uri,displayName=item.name,durationMs=item.durationMs),item.modifiedAt)
+                val ocr=bitmap?.let{recognize(it)}?:""
+                val vector=bitmap?.let{embeddings.image(it.jpeg())}
+                val frames=if(item.kind==MediaKind.VIDEO)analyzeVideo(item)else emptyList()
+                database.upsert(MediaRecord(item.id,item.kind,item.capturedAt,ocr=ocr,labels=labels,embedding=vector,videoFrames=frames,metadataTerms=setOf(if(item.kind==MediaKind.VIDEO)"video" else "photo"),dominantColors=colors,isScreenshot=screenshot,uri=item.uri,displayName=item.name,durationMs=item.durationMs,visionUnderstanding=cached[item.uri]?.visionUnderstanding),item.modifiedAt)
                 if(item.uri in known)updated++ else added++
             }
             progress(IndexProgress(++processed,discovered.size))
@@ -71,6 +75,10 @@ class AndroidMediaIndexer(private val context:Context,private val database:Local
         return result
     }
     private fun thumbnail(item:DiscoveredMedia):Bitmap?=runCatching { resolver.loadThumbnail(Uri.parse(item.uri),Size(384,384),null) }.getOrNull()
+    private suspend fun analyzeVideo(item:DiscoveredMedia):List<VideoFrame> { val duration=item.durationMs?:return emptyList();val candidates=listOf(0L,duration/4,duration/2,duration*3/4,(duration-1).coerceAtLeast(0)).distinct().mapNotNull { at->videoBitmap(item.uri,at)?.let{FrameCandidate(at,fingerprint(it))} };return RepresentativeFrameSelector.select(candidates).mapNotNull { selected->videoBitmap(item.uri,selected.timestampMs)?.let{bitmap->VideoFrame(selected.timestampMs,recognize(bitmap),label(bitmap),embeddings.image(bitmap.jpeg()),sampleColors(bitmap),selected.sceneFingerprint)} } }
+    private fun videoBitmap(uri:String,atMs:Long):Bitmap?=runCatching { MediaMetadataRetriever().let { retriever->try{retriever.setDataSource(context,Uri.parse(uri));retriever.getFrameAtTime(atMs*1000,MediaMetadataRetriever.OPTION_CLOSEST_SYNC)}finally{retriever.release()} } }.getOrNull()
+    private fun fingerprint(bitmap:Bitmap):Long { var bits=0L;var sum=0L;val values=IntArray(64){i->bitmap.getPixel(i%8*bitmap.width/8,i/8*bitmap.height/8).let{p->((p shr 16 and 255)+(p shr 8 and 255)+(p and 255))/3}.also{sum+=it}};values.forEachIndexed{i,v->if(v>=sum/64)bits=bits or(1L shl i)};return bits }
+    private fun Bitmap.jpeg():ByteArray=ByteArrayOutputStream().use{out->compress(Bitmap.CompressFormat.JPEG,92,out);out.toByteArray()}
     private suspend fun recognize(bitmap:Bitmap):String=suspendCancellableCoroutine { continuation ->
         val client=TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);client.process(InputImage.fromBitmap(bitmap,0)).addOnSuccessListener{continuation.resume(it.text)}.addOnFailureListener{continuation.resume("")}.addOnCompleteListener{client.close()}
     }
@@ -81,13 +89,14 @@ class AndroidMediaIndexer(private val context:Context,private val database:Local
 }
 
 class MemoriesViewModel(application:Application):AndroidViewModel(application) {
-    private val db=LocalMediaDatabase(application);private val indexer=AndroidMediaIndexer(application,db);private val parser=QueryParser();private val ranker=SearchRanker()
+    private val db=LocalMediaDatabase(application);private val embeddings=AndroidTinyClipEmbeddingService(application);private val indexer=AndroidMediaIndexer(application,db,embeddings);private val parser=QueryParser();private val encoder=SemanticQueryEncoder(embeddings)
     private val mutableState=MutableStateFlow<MemorySearchState>(if(hasPermission(application))MemorySearchState.Indexing(IndexProgress()) else MemorySearchState.PermissionRequired)
     val state:StateFlow<MemorySearchState> = mutableState.asStateFlow()
     init { if(hasPermission(application))refresh() }
     fun permissionResult(){if(hasPermission(getApplication()))refresh()else mutableState.value=MemorySearchState.PermissionRequired}
     fun refresh(){viewModelScope.launch { mutableState.value=MemorySearchState.Indexing(IndexProgress());runCatching{indexer.synchronize{mutableState.value=MemorySearchState.Indexing(it)};db.records()}.onSuccess{mutableState.value=MemorySearchState.Ready(it.size)}.onFailure{mutableState.value=MemorySearchState.Failed(it.message?:"Unable to index media")}}}
-    fun search(raw:String){viewModelScope.launch(Dispatchers.Default){val records=db.records();val query=parser.parse(raw);val matches=ranker.rank(query,records);mutableState.value=MemorySearchState.Results(raw,matches)}}
+    fun search(raw:String){viewModelScope.launch(Dispatchers.Default){val records=db.records();val query=parser.parse(raw);val vectors=LocalVectorIndex().also{index->records.forEach{record->record.embedding?.let{index.upsert(record.id,it)};record.videoFrames.forEach{frame->frame.embedding?.let{index.upsert(record.id,it)}}}};val matches=HybridSearchEngine(vectors).search(query,records.associateBy{it.id},encoder.encode(query));val credible=matches.filter{it.breakdown.fullSemantic>=.30||it.confidence!=MatchConfidence.WEAK};mutableState.value=MemorySearchState.Results(raw,credible)}}
+    override fun onCleared(){embeddings.close();super.onCleared()}
     companion object {
         fun permissions()=if(Build.VERSION.SDK_INT>=33)arrayOf(Manifest.permission.READ_MEDIA_IMAGES,Manifest.permission.READ_MEDIA_VIDEO)else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         fun hasPermission(context:Context)=permissions().all{ContextCompat.checkSelfPermission(context,it)==PackageManager.PERMISSION_GRANTED}

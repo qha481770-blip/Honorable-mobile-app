@@ -32,7 +32,8 @@ class ProductionIntegrationContractTest {
         val ui=source("app/honorable/MainActivity.kt")
         val results=ui.substringAfter("@Composable private fun SearchResults").substringBefore("@Composable private fun RealMemory")
         assertTrue(results.contains("matches:List<SearchMatch>"))
-        assertTrue(results.contains("items(visible"))
+        assertTrue(results.contains("BestMatchCard(ranked.first()"))
+        assertTrue(results.contains("items(ranked.drop(1)"))
         assertFalse(results.contains("memoryItems"))
     }
 
