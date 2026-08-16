@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 protocol EmbeddingService { var modelID: String { get }; var dimension: Int { get }; func embedText(_ text: String) async throws -> [Float]? }
 protocol OCRService { func recognize(data: Data) async throws -> String }
@@ -8,6 +9,36 @@ protocol VectorIndex { func upsert(id: String, vector: [Float]); func nearest(_ 
 struct VideoFrame { let timestamp: TimeInterval; let ocr: String; let labels: [String]; let embedding: [Float]? }
 struct IndexStats { let added: Int; let updated: Int; let deleted: Int }
 struct IndexCompatibility { let schemaVersion = 1; let modelID = "TinyCLIP-ViT-8M-16-Text-3M-YFCC15M-int8"; let dimension = 512 }
+
+enum AttestationSignal { case notRequested, serverVerificationRequired, serverVerified }
+protocol AppAttestationService { func signalForSensitiveServerAction() async throws -> AttestationSignal }
+
+/// App Attest assertions require a server challenge and server-side verification.
+/// Offline Memories and Terms features must never call this boundary.
+struct UnconfiguredAppAttestationService: AppAttestationService {
+    func signalForSensitiveServerAction() async throws -> AttestationSignal { .serverVerificationRequired }
+}
+
+/// Small Keychain boundary for future account/store tokens. App data and search
+/// content do not belong here, and credentials must never be stored in UserDefaults.
+struct CredentialVault {
+    func save(_ data: Data, account: String) throws {
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                    kSecAttrService as String: "app.honorable.credentials",
+                                    kSecAttrAccount as String: account]
+        SecItemDelete(query as CFDictionary)
+        var item = query
+        item[kSecValueData as String] = data
+        item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        guard SecItemAdd(item as CFDictionary, nil) == errSecSuccess else { throw CredentialVaultError.writeFailed }
+    }
+    func remove(account: String) {
+        SecItemDelete([kSecClass as String: kSecClassGenericPassword,
+                       kSecAttrService as String: "app.honorable.credentials",
+                       kSecAttrAccount as String: account] as CFDictionary)
+    }
+}
+enum CredentialVaultError: Error { case writeFailed }
 
 /// Intentionally unavailable until the validated ONNX asset and iOS runtime are bundled.
 struct TinyCLIPEmbeddingService: EmbeddingService {

@@ -36,11 +36,24 @@ jobs:
         run: chmod +x gradlew
       - name: Unit tests
         run: ./gradlew --no-daemon test
-      - name: Build debug APK
-        run: ./gradlew --no-daemon assembleDebug
-      - name: Upload debug APK
+      - name: Build unsigned hardened release
+        run: ./gradlew --no-daemon assembleRelease bundleRelease
+      - name: Verify release contents
+        run: ./scripts/verify-release.sh app/build/outputs/apk/release/app-release-unsigned.apk
+      - name: Upload unsigned release
         uses: actions/upload-artifact@v4
         with:
-          name: honorable-android-debug
-          path: android-app/app/build/outputs/apk/debug/app-debug.apk
+          name: honorable-android-unsigned-release
+          retention-days: 14
+          path: |
+            android-app/app/build/outputs/apk/release/app-release-unsigned.apk
+            android-app/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+      - name: Retain R8 mapping for trusted builds
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: honorable-r8-mapping-${{ github.sha }}
+          retention-days: 14
+          path: android-app/app/build/outputs/mapping/release/mapping.txt
           if-no-files-found: error

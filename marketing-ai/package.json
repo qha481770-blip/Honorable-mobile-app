@@ -6,7 +6,14 @@
   "type": "module",
   "scripts": {
     "start": "node --env-file-if-exists=.env src/server.js",
-    "test": "node --test --test-isolation=none"
+    "test": "node --test --test-isolation=none",
+    "verify-config": "node --env-file-if-exists=.env scripts/verify-config.js",
+    "verify-database": "node --env-file-if-exists=.env scripts/verify-database.js"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "^8.23.0"
+  }
 }

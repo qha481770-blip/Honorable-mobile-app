@@ -9,14 +9,17 @@ import ai.onnxruntime.OrtSession
 import org.json.JSONObject
 import java.nio.FloatBuffer
 import java.nio.LongBuffer
+import java.security.MessageDigest
 import java.text.Normalizer
 import kotlin.math.sqrt
 
 /** Fully local TinyCLIP inference using the exact validated test-lab model and preprocessing. */
 class AndroidTinyClipEmbeddingService(context: Context) : TinyClipEmbeddingService(), AutoCloseable {
     private val environment=OrtEnvironment.getEnvironment()
-    private val session=environment.createSession(context.assets.open("tinyclip/model_int8.onnx").use{it.readBytes()},OrtSession.SessionOptions())
-    private val tokenizer=ClipTokenizer(context.assets.open("tinyclip/tokenizer.json").bufferedReader().use{it.readText()})
+    private val modelBytes=context.assets.open("tinyclip/model_int8.onnx").use{it.readBytes()}.also{ModelAssetIntegrity.requireModel(it)}
+    private val tokenizerBytes=context.assets.open("tinyclip/tokenizer.json").use{it.readBytes()}.also{ModelAssetIntegrity.requireTokenizer(it)}
+    private val session=environment.createSession(modelBytes,OrtSession.SessionOptions())
+    private val tokenizer=ClipTokenizer(tokenizerBytes.toString(Charsets.UTF_8))
     override fun image(bytes:ByteArray):FloatArray?=runCatching{infer(tokenizer.encode("a photo"),pixels(BitmapFactory.decodeByteArray(bytes,0,bytes.size)?:return null),3)}.getOrNull()
     override fun text(query:String):FloatArray?=runCatching{infer(tokenizer.encode(query),FloatArray(3*224*224),2)}.getOrNull()
     private fun infer(tokens:LongArray,pixels:FloatArray,output:Int):FloatArray {
@@ -28,6 +31,18 @@ class AndroidTinyClipEmbeddingService(context: Context) : TinyClipEmbeddingServi
     private fun normalize(v:FloatArray):FloatArray { val n=sqrt(v.sumOf{it*it.toDouble()}).toFloat();return if(n==0f)v else FloatArray(v.size){v[it]/n} }
     override fun close(){session.close()}
     private inline fun <T:AutoCloseable,R> Collection<T>.useAll(block:()->R):R=try{block()}finally{forEach{it.close()}}
+}
+
+/** Detects corrupt or replaced bundled inference assets; this is not DRM. */
+internal object ModelAssetIntegrity {
+    private const val MODEL_SHA256="10921310ddef06557ec1598d1260470a0a4db53f70ffe0deb60b946dcad6d27a"
+    private const val TOKENIZER_SHA256="6d9109cc838977f3ca94a379eec36aecc7c807e1785cd729660ca2fc0171fb35"
+    fun requireModel(bytes:ByteArray)=requireHash(bytes,MODEL_SHA256,"TinyCLIP model")
+    fun requireTokenizer(bytes:ByteArray)=requireHash(bytes,TOKENIZER_SHA256,"TinyCLIP tokenizer")
+    private fun requireHash(bytes:ByteArray,expected:String,label:String){
+        val actual=MessageDigest.getInstance("SHA-256").digest(bytes).joinToString(""){"%02x".format(it)}
+        check(MessageDigest.isEqual(actual.toByteArray(),expected.toByteArray())){"$label integrity check failed"}
+    }
 }
 
 private class ClipTokenizer(raw:String) {

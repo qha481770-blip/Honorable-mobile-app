@@ -1,6 +1,8 @@
 name: iOS TestFlight (credential-gated)
 on:
   workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   archive:
     if: ${{ vars.ENABLE_TESTFLIGHT == 'true' }}

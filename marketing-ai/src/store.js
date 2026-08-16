@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-const emptyState = () => ({ waitlist:[], events:[], campaigns:[], drafts:[] });
+const emptyState = () => ({ waitlist:[], events:[], campaigns:[], drafts:[], emailDeliveries:[] });
 
 export class JsonStore {
   constructor(directory) { this.directory = directory; this.file = path.join(directory, 'marketing-state.json'); this.state = emptyState(); this.ready = this.load(); this.queue = Promise.resolve(); }
@@ -15,7 +15,8 @@ export class JsonStore {
       const normalized = email.trim().toLowerCase();
       const existing = state.waitlist.find(x => x.email === normalized);
       if (existing) return { member:existing, duplicate:true };
-      const member = { id:crypto.randomUUID(), email:normalized, device, consent:Boolean(consent), source, campaign, content, createdAt:new Date().toISOString(), active:true, unsubscribeToken:crypto.randomBytes(24).toString('hex'), referralCode:crypto.randomBytes(6).toString('hex') };
+      const now=new Date().toISOString();
+      const member = { id:crypto.randomUUID(), email:normalized, device, consent:Boolean(consent), consentAt:now, source, campaign, content, createdAt:now, active:true, unsubscribeToken:crypto.randomBytes(24).toString('hex'), referralCode:crypto.randomBytes(6).toString('hex') };
       state.waitlist.push(member); return { member, duplicate:false };
     });
   }
@@ -24,6 +25,8 @@ export class JsonStore {
   addDraft(draft) { return this.mutate(state => { const saved={ ...draft,id:crypto.randomUUID(),status:'DRAFT',createdAt:new Date().toISOString() }; state.drafts.push(saved); return saved; }); }
   approveDraft(id) { return this.mutate(state => { const draft=state.drafts.find(x=>x.id===id); if(!draft)return null; draft.status='APPROVED — READY FOR MANUAL PUBLISHING';draft.approvedAt=new Date().toISOString();return draft; }); }
   addCampaign(input) { return this.mutate(state => { const campaign={ id:crypto.randomUUID(),name:input.name,variant:input.variant||'A',message:input.message,status:'DRAFT',createdAt:new Date().toISOString() };state.campaigns.push(campaign);return campaign; }); }
+  recordEmailDelivery(delivery) { return this.mutate(state => { state.emailDeliveries.push({...delivery,id:crypto.randomUUID(),createdAt:new Date().toISOString()}); return true; }); }
+  async waitlistAnalytics() { const state=await this.snapshot(); const base=publicAnalytics(state); const countBy=(items,key)=>Object.entries(items.reduce((all,x)=>((all[x[key]||'unknown']=(all[x[key]||'unknown']||0)+1),all),{})).map(([label,count])=>({label,count})).sort((a,b)=>b.count-a.count); return {...base,newSignups:state.waitlist.filter(x=>Date.now()-new Date(x.createdAt)<7*86400000).length,unsubscribeCount:state.waitlist.filter(x=>!x.active).length,byDevice:countBy(state.waitlist,'device'),emailDeliveries:countBy(state.emailDeliveries,'status')}; }
 }
 
 export function publicAnalytics(state) {

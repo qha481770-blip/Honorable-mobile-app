@@ -12,6 +12,16 @@ release-builds/ios/*.ipa
 *.keystore
 *.p12
 *.mobileprovision
+*.p8
+*.pem
+*.cer
+*.der
+*.key
+*.properties.local
+mapping.txt
+.env
+.env.*
+!.env.example
 /test-media/*
 !/test-media/README.md
 !/test-media/evaluation.example.json

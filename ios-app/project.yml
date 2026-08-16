@@ -14,6 +14,16 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Honorable indexes your library privately on this device.
         INFOPLIST_KEY_CFBundleDisplayName: Honorable
+        INFOPLIST_KEY_UIFileSharingEnabled: NO
+        INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: NO
+        SWIFT_STRICT_CONCURRENCY: complete
+      configs:
+        Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+        Release:
+          SWIFT_COMPILATION_MODE: wholemodule
+          SWIFT_OPTIMIZATION_LEVEL: -O
+          DEAD_CODE_STRIPPING: YES
   HonorableTests:
     type: bundle.unit-test
     platform: iOS

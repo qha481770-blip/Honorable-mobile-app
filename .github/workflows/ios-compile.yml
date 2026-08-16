@@ -3,6 +3,8 @@ on:
   workflow_dispatch:
   push:
     paths: ["ios-app/**", ".github/workflows/ios-compile.yml"]
+permissions:
+  contents: read
 jobs:
   compile:
     runs-on: macos-15
