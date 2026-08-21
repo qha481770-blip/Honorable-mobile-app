@@ -5,6 +5,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createMarketingApp } from '../src/app.js';
+import { config } from '../src/config.js';
+import { ResendDevelopmentEmailService } from '../src/core/email.js';
 
 async function fixture(t,dependencies={}){
   const dir=await mkdtemp(path.join(os.tmpdir(),'honorable-marketing-test-'));
@@ -43,4 +45,30 @@ test('drafts require approval and approval does not publish',async t=>{
 test('website and dashboard are served with restrictive security headers',async t=>{
   const {base}=await fixture(t);const home=await request(base,'/');assert.equal(home.status,200);assert.match(home.text(),/You remember/);assert.match(home.headers['content-security-policy'],/frame-ancestors 'none'/);
   const dashboard=await request(base,'/dashboard');assert.equal(dashboard.status,200);assert.match(dashboard.text(),/data-label/);
+});
+
+test('production email absence skips welcome without failing signup',async t=>{
+  const {base,dir}=await fixture(t,{});
+  const settings=config({RESEND_API_KEY:'secret',RESEND_DEV_RECIPIENT:'owner@example.com'},dir);
+  const server=http.createServer(createMarketingApp({...settings,dataDir:dir,waitlistStore:'local-json',discoveryMode:'mock'}));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const isolatedBase=`http://127.0.0.1:${server.address().port}`;
+  const response=await post(isolatedBase,'/api/waitlist',{email:'arbitrary@example.com',device:'Both',consent:true});
+  assert.equal(response.status,201);assert.equal(response.json().emailDelivery,'skipped');
+  const dashboard=(await request(isolatedBase,'/api/dashboard')).json();
+  assert.equal(dashboard.email.development,'CONNECTED');assert.equal(dashboard.email.production,'DOMAIN REQUIRED');
+});
+
+test('resend development mode only permits the configured account recipient',async()=>{
+  const calls=[];const service=new ResendDevelopmentEmailService({apiKey:'secret',recipient:'Owner@Example.com',fetchImpl:async(url,options)=>{calls.push(JSON.parse(options.body));return {ok:true,json:async()=>({id:'test-id'})};}});
+  await assert.rejects(()=>service.sendTest({to:'waitlist-user@example.com'}),error=>error.code==='recipient_not_allowed');
+  assert.equal(calls.length,0);
+  const result=await service.sendTest({to:'owner@example.com'});assert.equal(result.status,'success');assert.deepEqual(calls[0].to,['owner@example.com']);assert.match(calls[0].from,/@resend\.dev>$/);
+});
+
+test('auto-reply dashboard is dry-run, globally off, and exposes no authorized publisher',async t=>{
+  const {base}=await fixture(t);const page=await request(base,'/dashboard/social/autoreply');assert.equal(page.status,200);assert.match(page.text(),/STOP ALL AUTO-REPLIES/);
+  const status=(await request(base,'/api/autoreply')).json();assert.equal(status.dryRun,true);assert.equal(status.settings.globalEnabled,false);assert.ok(status.platforms.every(x=>x.authenticated===false));assert.ok(status.platforms.every(x=>x.apiSupport!=='REPLY_API_SUPPORTED'));
+  const stopped=await post(base,'/api/autoreply/settings',{killSwitch:true,globalEnabled:true});assert.equal(stopped.json().globalEnabled,false);
 });

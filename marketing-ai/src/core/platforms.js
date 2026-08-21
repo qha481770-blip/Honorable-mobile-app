@@ -1,5 +1,5 @@
 export const ConnectorStatus=Object.freeze({CONNECTED:'CONNECTED',NOT_CONFIGURED:'NOT CONFIGURED',APPROVAL_REQUIRED:'APPROVAL REQUIRED',CONFIGURATION_REQUIRED:'CONFIGURATION REQUIRED',MANUAL_ONLY:'MANUAL ONLY',OFFICIAL_UNAVAILABLE:'OFFICIAL API UNAVAILABLE'});
-const queries=["can't find old photos",'too many photos on phone','find old video','photo organization','search photos by description','AI photo search','find screenshot','iPhone photo organization','Android photo search'];
+export const discoveryQueries=["can't find an old photo without the date",'search camera roll by description','too many photos on iPhone','too many photos on Android','find an old video by what happens','cannot find screenshot receipt','photo organization app huge library','Google Photos search not finding photo','iPhone Photos search not working','AI photo finder private'];
 
 class OfficialCollector {
   constructor(name,configured=false){this.name=name;this.configured=Boolean(configured);}
@@ -10,11 +10,11 @@ export class YouTubeMarketingCollector extends OfficialCollector {
   constructor(apiKey,fetchImpl=fetch){super('YouTube',apiKey);this.apiKey=apiKey;this.fetch=fetchImpl;}
   async collectPublicOpportunities(){
     if(!this.apiKey)return[]; const search=new URL('https://www.googleapis.com/youtube/v3/search');
-    search.search=new URLSearchParams({part:'snippet',type:'video',maxResults:'25',order:'date',q:queries.join('|'),key:this.apiKey}).toString();
+    search.search=new URLSearchParams({part:'snippet',type:'video',maxResults:'25',order:'date',q:discoveryQueries.slice(0,5).join('|'),key:this.apiKey}).toString();
     const found=await this.fetch(search);if(!found.ok)throw new Error(`YouTube API ${found.status}`);const payload=await found.json();
     const ids=payload.items.map(x=>x.id.videoId).filter(Boolean);let stats=new Map();
     if(ids.length){const videos=new URL('https://www.googleapis.com/youtube/v3/videos');videos.search=new URLSearchParams({part:'statistics',id:ids.join(','),key:this.apiKey}).toString();const response=await this.fetch(videos);if(!response.ok)throw new Error(`YouTube statistics API ${response.status}`);stats=new Map((await response.json()).items.map(x=>[x.id,x.statistics]));}
-    return payload.items.map(x=>({id:`youtube-${x.id.videoId}`,platform:'YouTube',topic:x.snippet.title,text:x.snippet.description||'',channel:x.snippet.channelTitle,publishedAt:x.snippet.publishedAt,sourceUrl:`https://www.youtube.com/watch?v=${x.id.videoId}`,engagement:Number(stats.get(x.id.videoId)?.viewCount||0),metrics:stats.get(x.id.videoId)||{},dataType:'LIVE',mock:false}));
+    return payload.items.map(x=>({id:`youtube-${x.id.videoId}`,platform:'YouTube',topic:x.snippet.title,text:x.snippet.description||'',publishedAt:x.snippet.publishedAt,sourceUrl:`https://www.youtube.com/watch?v=${x.id.videoId}`,engagement:Number(stats.get(x.id.videoId)?.viewCount||0),metrics:stats.get(x.id.videoId)||{},sourceType:'DIRECT_API',dataType:'LIVE',mock:false}));
   }
 }
 
@@ -47,7 +47,32 @@ export class TikTokManualCollector extends OfficialCollector {
 
 export class GoogleWebDiscoveryCollector extends OfficialCollector {
   constructor(config={},fetchImpl=fetch){super('Web discovery',config.apiKey&&config.engineId);this.config=config;this.fetch=fetchImpl;}
-  async collectPublicOpportunities(){if(!this.config.apiKey||!this.config.engineId)return[];const url=new URL('https://www.googleapis.com/customsearch/v1');url.search=new URLSearchParams({key:this.config.apiKey,cx:this.config.engineId,q:'("find old photos" OR "too many photos" OR "photo organization" OR "find screenshot")',num:'10'}).toString();const response=await this.fetch(url);if(!response.ok)throw new Error(`Google Custom Search API ${response.status}`);return ((await response.json()).items||[]).map((x,i)=>({id:`web-${i}-${x.cacheId||''}`,platform:'Web',topic:x.title,text:x.snippet||'',publishedAt:new Date().toISOString(),sourceUrl:x.link,engagement:0,dataType:'LIVE',mock:false}));}
+  async collectPublicOpportunities({query}={}){
+    if(!this.config.apiKey||!this.config.engineId)return[];
+    const url=new URL('https://www.googleapis.com/customsearch/v1');url.search=new URLSearchParams({key:this.config.apiKey,cx:this.config.engineId,q:query||discoveryQueries.slice(0,5).map(x=>`"${x}"`).join(' OR '),num:'10',dateRestrict:'m6'}).toString();const response=await this.fetch(url);if(!response.ok)throw new Error(`Google Custom Search API ${response.status}`);
+    return ((await response.json()).items||[]).map((x,i)=>{let platform='Forums/Public Web',sourceDomain='';try{sourceDomain=new URL(x.link).hostname.toLowerCase().replace(/^www\./,'');if(sourceDomain==='reddit.com'||sourceDomain.endsWith('.reddit.com'))platform='Reddit/Public Web';else if(sourceDomain==='x.com'||sourceDomain.endsWith('.x.com')||sourceDomain.endsWith('twitter.com'))platform='X/Public Web';else if(sourceDomain==='facebook.com'||sourceDomain.endsWith('.facebook.com'))platform='Facebook/Public Web';else if(sourceDomain==='instagram.com'||sourceDomain.endsWith('.instagram.com'))platform='Instagram/Public Web';else if(sourceDomain==='linkedin.com'||sourceDomain.endsWith('.linkedin.com'))platform='LinkedIn/Public Web';}catch{}
+      return{id:`web-${x.cacheId||i}-${Buffer.from(x.link).toString('base64url').slice(0,12)}`,platform,topic:x.title||'',text:x.snippet||'',sourceDomain,publishedAt:x.pagemap?.metatags?.[0]?.['article:published_time']||null,discoveredAt:new Date().toISOString(),sourceUrl:x.link,engagement:0,sourceType:'PUBLIC_WEB',dataType:'LIVE',mock:false};});
+  }
+}
+
+export class BraveWebDiscoveryCollector extends OfficialCollector {
+  constructor(config={},fetchImpl=fetch){super('Brave Search',config.apiKey);this.config=config;this.fetch=fetchImpl;}
+  async collectPublicOpportunities({query}={}){
+    if(!this.config.apiKey)return[];
+    const url=new URL('https://api.search.brave.com/res/v1/web/search');url.search=new URLSearchParams({q:query||discoveryQueries.slice(0,5).map(x=>`"${x}"`).join(' OR '),count:'10',search_lang:'en',safesearch:'moderate',freshness:'pm'}).toString();
+    const response=await this.fetch(url,{headers:{accept:'application/json','x-subscription-token':this.config.apiKey}});if(!response.ok)throw new Error(`Brave Search API ${response.status}`);
+    return ((await response.json()).web?.results||[]).map((x,i)=>{let platform='Forums/Public Web',sourceDomain='';try{sourceDomain=new URL(x.url).hostname.toLowerCase().replace(/^www\./,'');if(sourceDomain==='reddit.com'||sourceDomain.endsWith('.reddit.com'))platform='Reddit/Public Web';else if(sourceDomain==='x.com'||sourceDomain.endsWith('.x.com')||sourceDomain.endsWith('twitter.com'))platform='X/Public Web';else if(sourceDomain==='facebook.com'||sourceDomain.endsWith('.facebook.com'))platform='Facebook/Public Web';else if(sourceDomain==='instagram.com'||sourceDomain.endsWith('.instagram.com'))platform='Instagram/Public Web';else if(sourceDomain==='linkedin.com'||sourceDomain.endsWith('.linkedin.com'))platform='LinkedIn/Public Web';}catch{}
+      return{id:`brave-${i}-${Buffer.from(x.url||'').toString('base64url').slice(0,12)}`,platform,topic:x.title||'',text:x.description||'',sourceDomain,publishedAt:x.page_age||null,discoveredAt:new Date().toISOString(),sourceUrl:x.url,engagement:0,sourceType:'PUBLIC_WEB',dataType:'LIVE',mock:false};});
+  }
+}
+
+export class SearXNGWebDiscoveryCollector extends GoogleWebDiscoveryCollector {
+  constructor(config={},fetchImpl=fetch){super({},fetchImpl);this.name='Web discovery';this.config=config;this.configured=Boolean(config.baseUrl);}
+  async collectPublicOpportunities({query}={}){
+    if(!this.config.baseUrl)return[];const url=new URL('/search',this.config.baseUrl);url.search=new URLSearchParams({q:query||discoveryQueries[0],format:'json',language:'en',safesearch:'1',time_range:'month',...(this.config.engines?{engines:this.config.engines}:{})}).toString();const response=await this.fetch(url,{headers:{accept:'application/json'}});if(!response.ok)throw new Error(`SearXNG API ${response.status}`);const payload=await response.json();
+    return (payload.results||[]).slice(0,20).map((x,i)=>{let platform='Forums/Public Web',sourceDomain='';try{sourceDomain=new URL(x.url).hostname.toLowerCase().replace(/^www\./,'');if(sourceDomain==='reddit.com'||sourceDomain.endsWith('.reddit.com'))platform='Reddit/Public Web';else if(sourceDomain==='x.com'||sourceDomain.endsWith('.x.com')||sourceDomain.endsWith('twitter.com'))platform='X/Public Web';else if(sourceDomain==='facebook.com'||sourceDomain.endsWith('.facebook.com'))platform='Facebook/Public Web';else if(sourceDomain==='instagram.com'||sourceDomain.endsWith('.instagram.com'))platform='Instagram/Public Web';else if(sourceDomain==='linkedin.com'||sourceDomain.endsWith('.linkedin.com'))platform='LinkedIn/Public Web';}catch{}
+      return{id:`searxng-${i}-${Buffer.from(x.url||'').toString('base64url').slice(0,12)}`,platform,topic:x.title||'',text:x.content||'',sourceDomain,searchEngines:[...new Set([...(x.engines||[]),...(x.engine?[x.engine]:[])])],publishedAt:x.publishedDate||null,discoveredAt:new Date().toISOString(),sourceUrl:x.url,engagement:0,sourceType:'PUBLIC_WEB',dataType:'LIVE',mock:false};});
+  }
 }
 
 export function createCollectors(settings={},dependencies={}){const credentials=settings.credentials||settings;const fetchImpl=dependencies.fetchImpl||fetch;return[new YouTubeMarketingCollector(credentials.youtube,fetchImpl),new InstagramMarketingCollector(credentials.instagram,fetchImpl),new RedditMarketingCollector(credentials.reddit,credentials.redditApproval,fetchImpl),new TikTokManualCollector(),new GoogleWebDiscoveryCollector(settings.webSearch,fetchImpl)];}

@@ -13,3 +13,16 @@ metadata, embeddings, and sampled video frames are never uploaded.
 
 Google Sign-In and purchases currently expose integration boundaries and UI only;
 no credentials or store configuration are included.
+
+## Linux Android-style verification demo
+
+The Codespaces demo uses the real `test-media/` library and JVM search pipeline:
+
+```bash
+./linux-demo.sh verify
+./linux-demo.sh index
+./linux-demo.sh start
+```
+
+Forward port `8080`. Set `DEMO_DEBUG=true` and open `/?debug=true` for search
+evidence; Recording Mode always hides the overlay.

@@ -1,17 +1,23 @@
 export class EmailService {
-  status() { return 'ABSTRACT'; }
+  status() { return {development:'DISCONNECTED',production:'DOMAIN REQUIRED'}; }
   async sendWelcome() { throw new Error('Not implemented'); }
 }
 
 export class TestEmailService extends EmailService {
   constructor() { super(); this.deliveries=[]; }
-  status() { return 'TEST MODE — NO EMAIL SENT'; }
+  status() { return {development:'TEST MODE — NO EMAIL SENT',production:'DOMAIN REQUIRED'}; }
   async sendWelcome(message) { this.deliveries.push(message); return {status:'simulated',providerId:null}; }
 }
 
+export class DisabledEmailService extends EmailService {
+  constructor({developmentConnected=false}={}) { super(); this.developmentConnected=developmentConnected; }
+  status() { return {development:this.developmentConnected?'CONNECTED':'CONFIGURATION REQUIRED',production:'DOMAIN REQUIRED'}; }
+  async sendWelcome() { return {status:'skipped',providerId:null}; }
+}
+
 export class ResendEmailService extends EmailService {
-  constructor({apiKey,from,fetchImpl=fetch}) { super(); this.apiKey=apiKey; this.from=from; this.fetch=fetchImpl; }
-  status() { return this.apiKey&&this.from?'CONFIGURED — RESEND':'CONFIGURATION REQUIRED'; }
+  constructor({apiKey,from,developmentConnected=false,fetchImpl=fetch}) { super(); this.apiKey=apiKey; this.from=from; this.developmentConnected=developmentConnected; this.fetch=fetchImpl; }
+  status() { return {development:this.developmentConnected?'CONNECTED':'CONFIGURATION REQUIRED',production:this.apiKey&&this.from?'CONNECTED':'DOMAIN REQUIRED'}; }
   async sendWelcome({to,unsubscribeUrl}) {
     if (!this.apiKey||!this.from) throw new Error('Resend is not configured');
     const response=await this.fetch('https://api.resend.com/emails',{method:'POST',headers:{authorization:`Bearer ${this.apiKey}`,'content-type':'application/json'},body:JSON.stringify({
@@ -25,7 +31,23 @@ export class ResendEmailService extends EmailService {
   }
 }
 
+export class ResendDevelopmentEmailService {
+  constructor({apiKey,from='Honorable Development <onboarding@resend.dev>',recipient,fetchImpl=fetch}) { this.apiKey=apiKey;this.from=from;this.recipient=recipient?.trim().toLowerCase();this.fetch=fetchImpl; }
+  status() { return this.apiKey&&this.recipient?'CONNECTED':'CONFIGURATION REQUIRED'; }
+  async sendTest({to=this.recipient}={}) {
+    if(!this.apiKey||!this.recipient)throw new Error('Resend development email is not configured');
+    if(to?.trim().toLowerCase()!==this.recipient){const error=new Error('Development email recipient is not allowed');error.code='recipient_not_allowed';throw error;}
+    const response=await this.fetch('https://api.resend.com/emails',{method:'POST',headers:{authorization:`Bearer ${this.apiKey}`,'content-type':'application/json'},body:JSON.stringify({from:this.from,to:[this.recipient],subject:'Honorable development email test',text:'Honorable Resend development mode is connected.'})});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok){const error=new Error('Email provider rejected the request');error.code=String(result.name||response.status);throw error;}
+    return {status:'success',providerId:result.id};
+  }
+}
+
 export function createEmailService(settings, dependencies={}) {
   if (dependencies.emailService) return dependencies.emailService;
-  return settings.emailProvider==='resend' ? new ResendEmailService({apiKey:settings.emailApiKey,from:settings.emailFrom}) : new TestEmailService();
+  const developmentConnected=Boolean(settings.emailApiKey&&settings.emailDevelopmentRecipient);
+  if(settings.emailProvider==='resend')return new ResendEmailService({apiKey:settings.emailApiKey,from:settings.emailFrom,developmentConnected});
+  if(settings.emailProvider==='test')return new TestEmailService();
+  return new DisabledEmailService({developmentConnected});
 }

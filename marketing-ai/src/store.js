@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-const emptyState = () => ({ waitlist:[], events:[], campaigns:[], drafts:[], emailDeliveries:[] });
+const emptyState = () => ({ waitlist:[], events:[], campaigns:[], drafts:[], emailDeliveries:[],opportunities:[],discoveryRuns:[],autoReplySettings:{globalEnabled:false,killSwitch:false,platforms:{}},autoReplyProposals:[],autoReplyAudit:[] });
 
 export class JsonStore {
   constructor(directory) { this.directory = directory; this.file = path.join(directory, 'marketing-state.json'); this.state = emptyState(); this.ready = this.load(); this.queue = Promise.resolve(); }
@@ -23,6 +23,12 @@ export class JsonStore {
   unsubscribe(token) { return this.mutate(state => { const member=state.waitlist.find(x=>x.unsubscribeToken===token); if (!member) return false; member.active=false; member.unsubscribedAt=new Date().toISOString(); return true; }); }
   addEvent(event) { return this.mutate(state => { state.events.push({ id:crypto.randomUUID(), type:event.type, source:event.source||'direct', campaign:event.campaign||'organic', content:event.content||'unknown', createdAt:new Date().toISOString() }); if(state.events.length>10000)state.events=state.events.slice(-10000); return true; }); }
   addDraft(draft) { return this.mutate(state => { const saved={ ...draft,id:crypto.randomUUID(),status:'DRAFT',createdAt:new Date().toISOString() }; state.drafts.push(saved); return saved; }); }
+  saveDiscovery(opportunities,run={}) { return this.mutate(state=>{const previous=new Map(state.opportunities.map(x=>[x.sourceUrl||x.id,x]));for(const item of opportunities){const old=previous.get(item.sourceUrl||item.id);previous.set(item.sourceUrl||item.id,{...old,...item,status:old?.status||item.status,suggestedResponse:old?.suggestedResponse||item.suggestedResponse,discoveredAt:old?.discoveredAt||new Date().toISOString(),lastSeenAt:new Date().toISOString()});}state.opportunities=[...previous.values()].sort((a,b)=>b.score-a.score).slice(0,1000);state.discoveryRuns.push({...run,found:opportunities.length,createdAt:new Date().toISOString()});state.discoveryRuns=state.discoveryRuns.slice(-100);return opportunities;}); }
+  updateOpportunity(id,updates){return this.mutate(state=>{const item=state.opportunities.find(x=>x.id===id);if(!item)return null;Object.assign(item,updates,{updatedAt:new Date().toISOString()});return item;});}
+  saveAutoReplyProposals(items){return this.mutate(state=>{state.autoReplyProposals=items.map(item=>({...item,id:item.id||crypto.randomUUID(),createdAt:new Date().toISOString()}));return state.autoReplyProposals;});}
+  updateAutoReplyProposal(id,updates){return this.mutate(state=>{const item=state.autoReplyProposals.find(x=>x.id===id);if(!item)return null;Object.assign(item,updates,{updatedAt:new Date().toISOString()});return item;});}
+  setAutoReplySettings(updates){return this.mutate(state=>{Object.assign(state.autoReplySettings,updates,{updatedAt:new Date().toISOString()});return state.autoReplySettings;});}
+  addAutoReplyAudit(entry){return this.mutate(state=>{const saved={...entry,id:crypto.randomUUID(),timestamp:new Date().toISOString()};state.autoReplyAudit.push(saved);return saved;});}
   approveDraft(id) { return this.mutate(state => { const draft=state.drafts.find(x=>x.id===id); if(!draft)return null; draft.status='APPROVED — READY FOR MANUAL PUBLISHING';draft.approvedAt=new Date().toISOString();return draft; }); }
   addCampaign(input) { return this.mutate(state => { const campaign={ id:crypto.randomUUID(),name:input.name,variant:input.variant||'A',message:input.message,status:'DRAFT',createdAt:new Date().toISOString() };state.campaigns.push(campaign);return campaign; }); }
   recordEmailDelivery(delivery) { return this.mutate(state => { state.emailDeliveries.push({...delivery,id:crypto.randomUUID(),createdAt:new Date().toISOString()}); return true; }); }

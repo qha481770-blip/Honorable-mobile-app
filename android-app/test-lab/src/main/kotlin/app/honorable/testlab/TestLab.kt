@@ -12,6 +12,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicReference
 import java.util.Base64
 import javax.imageio.ImageIO
 import kotlin.io.path.*
@@ -42,9 +43,6 @@ class DirectoryMediaSource(private val root: Path) : FileMediaSource {
 data class LabIndex(val records: List<MediaRecord>, val elapsedMs: Long, val imageAnalysisMs: List<Long>, val warnings: List<String>)
 data class RefreshDelta(val added:Int,val updated:Int,val removed:Int)
 fun refreshDelta(old:List<MediaRecord>,current:List<MediaRecord>):RefreshDelta { val before=old.associateBy{it.uri};val after=current.associateBy{it.uri};return RefreshDelta(after.keys.count{it !in before},after.count{(uri,r)->before[uri]!=null&&before[uri]!!.capturedAtEpochMs!=r.capturedAtEpochMs},before.keys.count{it !in after}) }
-data class ConfidenceDecision(val confident:Boolean,val semantic:Double,val margin:Double,val reason:String)
-fun confidenceDecision(matches:List<SearchMatch>,minConfidence:Double=System.getenv("MEMORIES_MIN_CONFIDENCE")?.toDoubleOrNull()?:.30,minMargin:Double=System.getenv("MEMORIES_MIN_TOP1_MARGIN")?.toDoubleOrNull()?:.03):ConfidenceDecision { val best=matches.firstOrNull()?.breakdown?.fullSemantic?:0.0;val second=matches.getOrNull(1)?.breakdown?.fullSemantic;val margin=if(second==null&&matches.isNotEmpty())1.0 else (best-(second?:best)).coerceAtLeast(0.0);val reason=when{matches.isEmpty()->"no candidates";best<minConfidence->"semantic confidence below ${f(minConfidence)}";margin<minMargin->"top candidates are too close";else->"absolute confidence and top-1 margin passed"};return ConfidenceDecision(matches.isNotEmpty()&&best>=minConfidence&&margin>=minMargin,best,margin,reason) }
-
 class TinyClipBridge : Closeable {
     private val script=Paths.get("android-app/test-lab/tinyclip_bridge.py").toAbsolutePath()
     private val process=ProcessBuilder("python3",script.toString()).redirectError(ProcessBuilder.Redirect.INHERIT).start()
@@ -90,7 +88,7 @@ fun main(args: Array<String>) {
         "evaluate" -> evaluateCommand()
         "interactive" -> interactiveCommand()
         "list" -> listCommand()
-        "serve" -> serve(option(args, "--port")?.toIntOrNull() ?: 8080)
+        "serve" -> serve(option(args, "--port")?.toIntOrNull() ?: 4174)
         else -> error("Use: index | enrich [--limit N] | search --query TEXT [--top N] | interactive | evaluate | serve [--port N]")
     }
 }
@@ -296,16 +294,35 @@ private fun evaluateCommand() {
 }
 
 private fun serve(port:Int) {
-    val index=readIndex();val server=HttpServer.create(InetSocketAddress("0.0.0.0",port),0);server.executor=Executors.newCachedThreadPool()
-    server.createContext("/"){it.respond(200,"text/html; charset=utf-8",HTML)}
-    server.createContext("/api/search"){exchange->val params=queryParams(exchange.requestURI.rawQuery);val kind=when(params["type"]){"IMAGE"->MediaKind.IMAGE;"VIDEO"->MediaKind.VIDEO;else->null};exchange.respond(200,"application/json",searchJson(search(index,params["q"].orEmpty(),params["top"]?.toIntOrNull()?:10,kind)))}
-    server.createContext("/media/"){exchange->val relative=URLDecoder.decode(exchange.requestURI.rawPath.removePrefix("/media/"),UTF_8);val file=runCatching{mediaRoot.resolve(relative).normalize().toRealPath()}.getOrNull();if(file==null||!file.startsWith(mediaRoot.toRealPath())||!file.isRegularFile())exchange.respond(404,"text/plain","Not found")else{exchange.responseHeaders.add("Content-Type",Files.probeContentType(file)?:"application/octet-stream");exchange.sendResponseHeaders(200,Files.size(file));file.inputStream().use{input->exchange.responseBody.use{input.copyTo(it)}}}}
-    server.start();println("Memories test lab: http://0.0.0.0:$port");println("Serving only: $mediaRoot");println("SEMANTIC MODEL: FALLBACK")
+    require(port != 8080) { "Port 8080 is reserved; Honorable will not use it." }
+    val current=AtomicReference(readIndex());val clip=if(TinyClipBridge.available())TinyClipBridge()else null;val server=HttpServer.create(InetSocketAddress("0.0.0.0",port),0);server.executor=Executors.newCachedThreadPool()
+    server.createContext("/"){exchange->static(exchange)}
+    server.createContext("/health"){exchange->exchange.respond(200,"application/json; charset=utf-8","{\"service\":\"honorable-linux-demo\",\"status\":\"ok\",\"shell\":\"honorable-phone\"}")}
+    server.createContext("/api/media"){exchange->exchange.respond(200,"application/json",mediaJson(current.get()))}
+    server.createContext("/api/status"){exchange->exchange.respond(200,"application/json",statusJson(current.get()))}
+    server.createContext("/api/search"){exchange->val params=queryParams(exchange.requestURI.rawQuery);val kind=when(params["type"]){"IMAGE"->MediaKind.IMAGE;"VIDEO"->MediaKind.VIDEO;else->null};exchange.respond(200,"application/json",searchJson(search(current.get(),params["q"].orEmpty(),params["top"]?.toIntOrNull()?.coerceIn(1,50)?:10,kind,clip)))}
+    server.createContext("/api/refresh"){exchange->if(exchange.requestMethod!="POST")exchange.respond(405,"text/plain","POST required")else runCatching{val next=buildIndex(current.get());writeIndex(next);current.set(next);exchange.respond(200,"application/json",mediaJson(next))}.getOrElse{exchange.respond(500,"application/json","{\"error\":${json(it.message?:"refresh failed")}}")}}
+    server.createContext("/media/"){exchange->serveMedia(exchange)}
+    server.start()
+    println("HONORABLE LINUX DEMO")
+    println("STATUS: RUNNING")
+    println("PORT: $port")
+    val codespace=System.getenv("CODESPACE_NAME")
+    val forwardingDomain=System.getenv("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN")
+    if(!codespace.isNullOrBlank()&&!forwardingDomain.isNullOrBlank())println("URL: https://$codespace-$port.$forwardingDomain")
+    else println("URL: http://localhost:$port (open/forward port $port)")
+    println("BIND: 0.0.0.0:$port")
+    println("Serving only: $mediaRoot")
+    println("SEMANTIC MODEL: ${if(current.get().records.any{it.embedding?.size==512})"ACTIVE" else "UNAVAILABLE"}")
 }
 private val UTF_8=StandardCharsets.UTF_8
 private fun queryParams(raw:String?)=raw.orEmpty().split('&').filter{it.isNotBlank()}.associate{val p=it.split('=',limit=2);URLDecoder.decode(p[0],UTF_8) to URLDecoder.decode(p.getOrElse(1){""},UTF_8)}
 private fun HttpExchange.respond(code:Int,type:String,body:String){responseHeaders.add("Content-Type",type);val bytes=body.toByteArray();sendResponseHeaders(code,bytes.size.toLong());responseBody.use{it.write(bytes)}}
+private fun static(exchange:HttpExchange){val name=when(exchange.requestURI.path){"/","/index.html"->"index.html";"/phone.css"->"phone.css";"/phone.js"->"phone.js";else->null};if(name==null){exchange.respond(404,"text/plain","Not found");return};val root=Paths.get("android-app/test-lab/web").toAbsolutePath().normalize();val file=root.resolve(name).normalize();if(!file.startsWith(root)||!file.isRegularFile()){exchange.respond(404,"text/plain","Not found");return};exchange.respond(200,when(file.extension){"css"->"text/css; charset=utf-8";"js"->"text/javascript; charset=utf-8";else->"text/html; charset=utf-8"},file.readText())}
+private fun serveMedia(exchange:HttpExchange){val relative=runCatching{URLDecoder.decode(exchange.requestURI.rawPath.removePrefix("/media/"),UTF_8)}.getOrNull();val root=runCatching{mediaRoot.toRealPath()}.getOrNull();val file=relative?.let{runCatching{mediaRoot.resolve(it).normalize().toRealPath()}.getOrNull()};if(root==null||file==null||!file.startsWith(root)||!file.isRegularFile()||file.extension.lowercase() !in mediaLikeExt){exchange.respond(404,"text/plain","Not found");return};val size=Files.size(file);val range=exchange.requestHeaders.getFirst("Range")?.let{Regex("bytes=(\\d+)-(\\d*)").matchEntire(it)};val start=range?.groupValues?.get(1)?.toLongOrNull()?.coerceIn(0,size-1)?:0;val end=range?.groupValues?.get(2)?.toLongOrNull()?.takeIf{it>=start}?.coerceAtMost(size-1)?:size-1;exchange.responseHeaders.add("Content-Type",Files.probeContentType(file)?:"application/octet-stream");exchange.responseHeaders.add("Accept-Ranges","bytes");if(range!=null)exchange.responseHeaders.add("Content-Range","bytes $start-$end/$size");exchange.sendResponseHeaders(if(range!=null)206 else 200,end-start+1);file.inputStream().use{input->input.skip(start);exchange.responseBody.use{output->var remaining=end-start+1;val buffer=ByteArray(65536);while(remaining>0){val n=input.read(buffer,0,minOf(buffer.size.toLong(),remaining).toInt());if(n<0)break;output.write(buffer,0,n);remaining-=n}}}}
 private fun json(s:String)=buildString{append('"');s.forEach{when(it){'"'->append("\\\"");'\\'->append("\\\\");'\n'->append("\\n");else->append(it)}};append('"')}
-private fun searchJson(r:TimedSearch)="{\"model\":\"FALLBACK\",\"latencyMs\":${f(r.latencyMs)},\"results\":["+r.matches.mapIndexed{i,m->"{\"rank\":${i+1},\"name\":${json(m.media.displayName)},\"uri\":${json(m.media.uri)},\"type\":${json(m.media.kind.name)},\"score\":${f(m.score)},\"semantic\":${f(m.breakdown.fullSemantic)},\"ocr\":${f(m.breakdown.ocr)},\"color\":${f(m.breakdown.colors)},\"label\":${f(m.breakdown.labels)},\"timestamp\":${m.bestTimestampMs?:"null"},\"why\":${json(m.explanations.joinToString("; "))}}"}.joinToString(",")+"]}"
+private fun mediaJson(index:LabIndex)="{\"count\":${index.records.size},\"photos\":${index.records.count{it.kind==MediaKind.IMAGE}},\"videos\":${index.records.count{it.kind==MediaKind.VIDEO}},\"items\":["+index.records.sortedByDescending{it.capturedAtEpochMs}.joinToString(","){m->"{\"name\":${json(m.displayName)},\"uri\":${json(m.uri)},\"type\":${json(m.kind.name)},\"duration\":${m.durationMs?:"null"},\"modified\":${m.capturedAtEpochMs}}"}+"]}"
+private fun statusJson(index:LabIndex)="{\"engine\":\"REAL\",\"indexed\":${index.records.size},\"tinyclip\":${index.records.any{it.embedding?.size==512}},\"ocr\":${json(if(commandExists("tesseract"))"ACTIVE" else "UNAVAILABLE")},\"vlm\":${json(if(index.records.any{it.visionUnderstanding!=null})"CACHED" else "FALLBACK")},\"video\":${json(if(commandExists("ffmpeg")&&commandExists("ffprobe"))"ACTIVE" else "UNAVAILABLE")},\"debug\":${System.getenv("DEMO_DEBUG").equals("true",true)}}"
+private fun searchJson(r:TimedSearch):String{val decision=confidenceDecision(r.matches);return "{\"model\":\"TinyCLIP/hybrid\",\"latencyMs\":${f(r.latencyMs)},\"confident\":${decision.confident},\"margin\":${f(decision.margin)},\"decision\":${json(decision.reason)},\"results\":["+r.matches.mapIndexed{i,m->"{\"rank\":${i+1},\"name\":${json(m.media.displayName)},\"uri\":${json(m.media.uri)},\"type\":${json(m.media.kind.name)},\"score\":${f(m.score)},\"semantic\":${f(m.breakdown.fullSemantic)},\"vlm\":${f(m.breakdown.vlmCaption+m.breakdown.vlmObjects+m.breakdown.vlmActivities+m.breakdown.vlmScenes)},\"ocr\":${f(m.breakdown.ocr)},\"color\":${f(m.breakdown.colors)},\"metadata\":${f(m.breakdown.metadata)},\"timestamp\":${m.bestTimestampMs?:"null"},\"why\":${json(m.explanations.joinToString("; "))}}"}.joinToString(",")+"]}"}
 
 private const val HTML="""<!doctype html><meta name=viewport content="width=device-width"><title>Memories AI Test Lab</title><style>body{font:15px system-ui;max-width:1100px;margin:30px auto;padding:0 16px;background:#10131a;color:#eee}form{display:flex;gap:8px}input{flex:1}input,select,button{padding:12px;border-radius:8px;border:1px solid #555;background:#202532;color:white}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-top:20px}.card{background:#1b202b;padding:10px;border-radius:10px}img,video{width:100%;height:160px;object-fit:cover;background:#000}.muted{color:#aaa;font-size:12px}</style><h1>Memories AI Test Lab</h1><p>SEMANTIC MODEL: <b>FALLBACK</b> · local files only</p><form id=f><input id=q placeholder="red car in snow" autofocus><select id=t><option value="">Photos + Videos</option><option>IMAGE</option><option>VIDEO</option></select><button>Search</button></form><p id=status></p><div id=r class=grid></div><script>f.onsubmit=async e=>{e.preventDefault();status.textContent='Searching…';let d=await(await fetch('/api/search?q='+encodeURIComponent(q.value)+'&type='+t.value)).json();status.textContent=d.results.length+' results · '+d.latencyMs+' ms';r.innerHTML=d.results.map(x=>'<article class=card>'+(x.type==='VIDEO'?'<video controls src="/media/'+encodeURI(x.uri)+(x.timestamp!=null?'#t='+(x.timestamp/1000):'')+'"></video>':'<img src="/media/'+encodeURI(x.uri)+'">')+'<b>'+x.rank+'. '+x.name+'</b><div>Score '+x.score+(x.timestamp!=null?' · '+Math.floor(x.timestamp/60000)+':'+String(Math.floor(x.timestamp/1000)%60).padStart(2,'0'):'')+'</div><div class=muted>semantic '+x.semantic+' · OCR '+x.ocr+' · color '+x.color+' · label '+x.label+'</div><p>'+(x.why||'No positive evidence')+'</p></article>').join('')}</script>"""

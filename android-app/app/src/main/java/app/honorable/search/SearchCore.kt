@@ -90,6 +90,20 @@ data class SearchMatch(
     val breakdown: ScoreBreakdown = ScoreBreakdown()
 )
 
+data class ConfidenceDecision(val confident:Boolean,val semantic:Double,val margin:Double,val reason:String)
+fun confidenceDecision(matches:List<SearchMatch>,minConfidence:Double=.30,minMargin:Double=.03):ConfidenceDecision {
+    val best=matches.firstOrNull()?.breakdown?.fullSemantic?:0.0
+    val second=matches.getOrNull(1)?.breakdown?.fullSemantic
+    val margin=if(second==null&&matches.isNotEmpty())1.0 else (best-(second?:best)).coerceAtLeast(0.0)
+    val reason=when {
+        matches.isEmpty()->"no candidates"
+        best<minConfidence->"semantic confidence below ${"%.3f".format(minConfidence)}"
+        margin<minMargin->"top candidates are too close"
+        else->"absolute confidence and top-1 margin passed"
+    }
+    return ConfidenceDecision(matches.isNotEmpty()&&best>=minConfidence&&margin>=minMargin,best,margin,reason)
+}
+
 interface EmbeddingService { val modelId: String; val dimension: Int; fun image(bytes: ByteArray): FloatArray?; fun text(query: String): FloatArray? }
 interface OCRService { fun recognize(bytes: ByteArray): String }
 interface VideoAnalysisService { fun representativeFrames(uri: String, cancellation: () -> Boolean): Sequence<VideoFrame> }
