@@ -1,4 +1,5 @@
 const PREVIEWS = [
+  ['ios-01-home','iOS Home','iOS · SwiftUI','IMPLEMENTED'],
   ['01-home','Home','Core','IMPLEMENTED'],
   ['02-memories','Memories','Memories AI','IMPLEMENTED'],
   ['03-search-focus','Search focus','Memories AI','IMPLEMENTED'],
@@ -12,9 +13,10 @@ const PREVIEWS = [
   ['11-settings','Settings','Core','IMPLEMENTED'],
   ['12-privacy','Privacy','Trust & plans','IMPLEMENTED'],
   ['13-honorable-plus','Honorable Plus','Trust & plans','IMPLEMENTED'],
-  ['14-indexing','Indexing','System states','PARTIAL'],
+  ['14-indexing','Indexing','System states','IMPLEMENTED'],
   ['15-empty-search','Empty search','System states','IMPLEMENTED'],
   ['16-dark-home','Dark Home','Dark mode','IMPLEMENTED'],
   ['17-dark-memories','Dark Memories','Dark mode','IMPLEMENTED'],
-  ['18-dark-terms-ai','Dark Terms AI','Dark mode','IMPLEMENTED']
+  ['18-dark-terms-ai','Dark Terms AI','Dark mode','IMPLEMENTED'],
+  ['19-error-state','Safe error state','System states','IMPLEMENTED']
 ].map(([id,name,group,status])=>({id,name,group,status,file:`${id}.png`,theme:id.startsWith('16-')||id.startsWith('17-')||id.startsWith('18-')?'dark':'light'}));

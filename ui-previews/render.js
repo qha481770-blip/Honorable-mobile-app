@@ -1,253 +1,317 @@
 const id = new URLSearchParams(location.search).get('screen') || '01-home';
 const phone = document.querySelector('#phone');
+
 const darkChrome = new Set([
   '03-search-focus', '04-ai-searching', '07-media-viewer', '12-privacy',
   '13-honorable-plus', '16-dark-home', '17-dark-memories', '18-dark-terms-ai'
 ]);
+
 phone.classList.toggle('dark', darkChrome.has(id));
 phone.dataset.screen = id;
 
 const A = 'assets/';
 
-const masthead = (section = 'Private Intelligence', folio = 'VOL. 01<br>ON DEVICE') => `
-  <header class="masthead">
-    <div class="wordmark"><span class="monogram">H</span> HONORABLE</div>
-    <div class="folio">${section}<br>${folio}</div>
+const topbar = (section = 'Private intelligence', state = 'On device') => `
+  <header class="topbar">
+    <div class="brand-lockup">
+      <span class="brand-bubble">h</span>
+      <span class="brand-copy"><b>Honorable</b><small>${section}</small></span>
+    </div>
+    <span class="device-pill"><i></i>${state}</span>
+  </header>`;
+
+const modalHead = (section, accent = 'lilac') => `
+  <header class="modal-head">
+    <div class="brand-lockup">
+      <span class="brand-bubble ${accent}">h</span>
+      <span class="brand-copy"><b>${section}</b><small>Private · on device</small></span>
+    </div>
+    <span class="round-control" aria-label="Close">×</span>
   </header>`;
 
 const nav = active => `
-  <nav class="rail" aria-label="Primary">
+  <nav class="dock" aria-label="Primary">
     ${[
-      ['⌂', 'Home'], ['▦', 'Memories'], ['§', 'Terms'], ['◷', 'Activity'], ['☷', 'Settings']
-    ].map(([icon, label]) => `<span class="${label === active ? 'active' : ''}"><i>${icon}</i><small>${label}</small></span>`).join('')}
+      ['⌂', 'Home'], ['◉', 'Memories'], ['✦', 'Terms'], ['↻', 'Activity'], ['⚙', 'Settings']
+    ].map(([icon, label]) => `
+      <span class="dock-item ${label === active ? 'active' : ''}">
+        <i>${icon}</i><small>${label}</small>
+      </span>`).join('')}
   </nav>`;
 
-const search = (text = 'Describe a memory…', label = 'Search your library', cls = '') => `
-  <div class="glass-search ${cls}">
-    <div class="search-copy"><small>${label}</small><b>${text}</b></div>
-    <div class="submit">↗</div>
+const search = (text = 'Describe a memory…', label = 'Search naturally', cls = '') => `
+  <div class="search-bubble ${cls}">
+    <span class="search-spark">✦</span>
+    <span class="search-copy"><small>${label}</small><b>${text}</b></span>
+    <span class="search-go">↗</span>
   </div>`;
 
-const memory = (img, title, detail, number = '01', time = '') => `
-  <article class="memory">
+const action = (label, cls = '') => `
+  <div class="bubble-action ${cls}"><b>${label}</b><span>↗</span></div>`;
+
+const memory = (img, title, detail, tone = 'cyan', time = '') => `
+  <article class="memory-card ${tone}">
     <img src="${A + img}" alt="">
-    <span class="media-no">${number}</span>
-    ${time ? `<span class="timecode">${time}</span>` : ''}
-    <div class="cap"><b>${title}</b><small>${detail}</small></div>
+    <span class="memory-dot">●</span>
+    ${time ? `<span class="time-pill">${time}</span>` : ''}
+    <div class="memory-copy"><b>${title}</b><small>${detail}</small></div>
   </article>`;
 
 const sheet = () => `
-  <div class="contact-sheet">
-    ${memory('memory_tennis_4k.webp', 'Saturday match', 'outdoors · blue shirt', '01')}
-    ${memory('memory_snow_car_4k.webp', 'Winter drive', 'snow · red vehicle', '02')}
-    ${memory('memory_birthday_4k.webp', 'Birthday light', 'cake · candles', '03')}
+  <div class="memory-mosaic">
+    ${memory('memory_tennis_4k.webp', 'Saturday match', 'outdoors · blue shirt', 'cyan')}
+    ${memory('memory_snow_car_4k.webp', 'Winter drive', 'snow · red vehicle', 'lilac')}
+    ${memory('memory_birthday_4k.webp', 'Birthday light', 'cake · candles', 'blush')}
   </div>`;
 
-const privacyLedger = (dark = false) => `
-  <div class="privacy-ledger ${dark ? 'ink' : ''}">
-    <div class="seal">H</div>
-    <div><b>Private by architecture</b><br><span>Media, index, and queries remain here.</span></div>
-    <small>LOCAL / 01</small>
+const privacyPill = () => `
+  <div class="privacy-pill">
+    <span class="privacy-icon">⌁</span>
+    <span><b>Yours stays yours</b><small>Search and media never leave this phone.</small></span>
+    <i>✓</i>
   </div>`;
 
 const home = (dark = false) => `
-  <section class="screen home ${dark ? 'ink' : ''}">
-    ${masthead('Blueglass Intelligence', 'EDITION 01<br>MMXXVI')}
-    <div class="blueglass-hero">
-      <p class="eyebrow">PRIVATE INTELLIGENCE / EST. 2026</p>
-      <div class="hero-number">01</div>
-      <h1 class="display">Find what<br><em>matters.</em></h1>
-      <div class="hero-rule"></div>
-      <p class="dek">Describe a moment in your own words. Honorable searches the private library on this device.</p>
-      ${search('A white beach with tall grass', 'Ask your memories', 'ice')}
+  <section class="screen home-screen ${dark ? 'midnight' : ''}">
+    ${topbar('Private intelligence')}
+    <div class="home-hero">
+      <div class="bubble-scene" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <p class="kicker"><span></span> Your life, searchable</p>
+      <h1>Find what<br><em>matters.</em></h1>
+      <p class="body-copy">Describe a moment the way you remember it. Honorable finds it privately, right here.</p>
+      ${search('A white beach with tall grass', 'Ask your memories', 'hero-search')}
     </div>
-    <div class="feature-ledger">
-      <div class="ledger-item"><span class="index-no">01 / MEMORY INDEX</span><h3>Memories</h3><p>Find any moment →</p></div>
-      <div class="ledger-item"><span class="index-no">02 / CLARITY</span><h3>Terms AI</h3><p>Read the fine print →</p></div>
+    <div class="home-bento">
+      <article class="feature-card memories-card"><span class="feature-icon">◉</span><div><b>Memories</b><small>Find any moment</small></div><i>↗</i></article>
+      <article class="feature-card terms-card"><span class="feature-icon">✦</span><div><b>Terms AI</b><small>Make fine print clear</small></div><i>↗</i></article>
     </div>
-    ${privacyLedger(dark)}
+    ${privacyPill()}
     ${nav('Home')}
   </section>`;
 
 const memories = (dark = false) => `
-  <section class="screen ${dark ? 'ink' : ''}">
-    ${masthead('Memory Intelligence', '9,812 ITEMS<br>PRIVATE INDEX')}
-    <div class="edition-header">
-      <p class="eyebrow">THE PERSONAL MEMORY INDEX / 01</p>
-      <h1 class="display">Memories.</h1>
-      <p class="dek">No filenames. No folders. Describe the scene as you remember it.</p>
+  <section class="screen memories-screen ${dark ? 'midnight' : ''}">
+    ${topbar('Memory space', '9,812 local')}
+    <div class="memory-ambient" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="page-intro memory-intro">
+      <p class="kicker"><span></span> Search what only you remember</p>
+      <h1>What do you<br><em>remember?</em></h1>
+      <p class="body-copy">A color, a place, a tiny detail—start anywhere.</p>
     </div>
-    ${search('Describe a moment…', 'Natural-language search', dark ? 'dark-field' : '')}
-    <div class="ticker">
-      <span class="tag active">Suggested</span><span class="tag">White beach</span><span class="tag">Red car</span><span class="tag">Birthday light</span>
+    ${search('Start describing…', 'Private memory search')}
+    <div class="section-title memory-start-title"><h2>Start anywhere</h2><span>Made for your library</span></div>
+    <article class="memory-feature-prompt">
+      <div class="prompt-art" aria-hidden="true"><i></i><i></i><i></i><span>⌁</span></div>
+      <div class="prompt-feature-copy"><small>TRY A SCENE</small><h2>White beach<br>with tall grass</h2><p>Place + texture + color</p></div>
+      <span class="prompt-feature-go">↗</span>
+    </article>
+    <div class="memory-prompt-grid">
+      <article class="prompt-tile car"><span>◒</span><small>COLOR + WEATHER</small><b>Red car<br>in snow</b><i>↗</i></article>
+      <article class="prompt-tile cake"><span>✦</span><small>OBJECT + LIGHT</small><b>Birthday cake<br>by a window</b><i>↗</i></article>
     </div>
-    <div class="section-head"><h2>Recently surfaced</h2><small>CONTACT SHEET 01</small></div>
-    ${sheet()}
+    <div class="memory-local-note">
+      <span>✓</span><div><b>Private by default</b><small>Photos and searches stay on this device.</small></div><i>9,812 ready</i>
+    </div>
     ${nav('Memories')}
   </section>`;
 
 const searchFocus = () => `
-  <section class="screen no-rail ink focus-screen">
-    <header class="masthead"><div class="wordmark"><span class="monogram">H</span> MEMORIES AI</div><div class="close-box">×</div></header>
-    <p class="eyebrow" style="margin-top:22px">QUERY / NATURAL LANGUAGE / LOCAL</p>
-    <h1 class="display">Describe<br><span class="outline">the</span><br><em>moment.</em></h1>
-    <p class="dek" style="margin-top:20px">A scene, color, person, sign—even a feeling.</p>
-    ${search('blue shirt at tennis', 'Your description', 'dark-field')}
-    <div class="primary-action focus-submit"><b>SEARCH PRIVATE LIBRARY</b><span>↗</span></div>
-    <div class="local-note">◈ Private query · nothing leaves this device</div>
+  <section class="screen no-dock midnight search-focus-screen">
+    ${modalHead('Memories AI', 'cyan')}
+    <div class="focus-orbit" aria-hidden="true"><i></i><i></i><i></i></div>
+    <p class="kicker"><span></span> Say it how you remember it</p>
+    <h1>What are you<br><em>looking for?</em></h1>
+    <p class="body-copy">A scene, a color, a person, a sign—even a feeling.</p>
+    ${search('blue shirt at tennis', 'Your description', 'focus-field')}
+    <div class="prompt-tools"><span>◌ Photo</span><span>▷ Video</span><span>⌁ Place</span></div>
+    ${action('Search my private library', 'focus-action')}
+    <div class="safe-note"><span>⌁</span><b>Private query</b><small>Nothing leaves this device</small></div>
   </section>`;
 
 const searching = () => `
-  <section class="screen no-rail ink searching-screen">
-    <div class="search-mark">H</div>
-    <p class="eyebrow">LOCAL SEMANTIC SEARCH / ACTIVE</p>
-    <h1 class="display">Searching<br>your <em>library.</em></h1>
-    <div class="query-caption">“tennis outside”</div>
-    <p class="dek" style="margin-top:22px;text-align:center">Comparing scenes, text, color, time, and visual meaning.</p>
+  <section class="screen no-dock midnight searching-screen">
+    <div class="search-orbit" aria-label="Searching">
+      <i class="orbit-one"></i><i class="orbit-two"></i><i class="orbit-three"></i>
+      <span><b>h</b><small>thinking locally</small></span>
+    </div>
+    <p class="kicker"><span></span> Scanning your library</p>
+    <h1>Finding your<br><em>moment…</em></h1>
+    <div class="query-pill">“tennis outside”</div>
+    <p class="body-copy">Looking at scenes, words, colors, time and visual meaning—all on this phone.</p>
+    <div class="scan-steps"><span class="done">Scenes</span><span class="active">Meaning</span><span>Ranking</span></div>
   </section>`;
 
 const resultScreen = (video = false) => `
   <section class="screen results-screen">
-    ${masthead('Memory Search', video ? 'VIDEOS / 04<br>BEST FIRST' : 'ALL MEDIA / 12<br>BEST FIRST')}
-    <div class="result-topline"><div><p class="eyebrow">RESULTS FOR</p><b>${video ? 'tennis highlights' : 'tennis outside'}</b></div><span class="close-box">↙</span></div>
-    <div class="ticker"><span class="tag ${video ? '' : 'active'}">All</span><span class="tag">Photos</span><span class="tag ${video ? 'active' : ''}">Videos</span><span class="tag">Date</span><span class="tag">Place</span></div>
-    <article class="best-result">
+    ${topbar('Memory search', video ? '4 videos' : '12 matches')}
+    <div class="results-heading majestic-results-heading">
+      <div><p class="kicker"><span></span> ${video ? 'Video memories' : 'A private discovery'}</p><h1>Your moment,<br><em>found.</em></h1></div>
+      <span class="result-count-bubble"><b>${video ? '04' : '12'}</b><small>${video ? 'Videos' : 'Matches'}</small></span>
+    </div>
+    <article class="hero-result">
       <img src="${A}memory_tennis_4k.webp" alt="Best matching tennis memory">
-      <span class="match-index">01 / Strongest match</span>
-      ${video ? '<span class="duration">01:42</span>' : ''}
-      <div class="result-copy">
-        <p class="eyebrow">${video ? 'MATCHING VIDEO MOMENT' : 'MATCHING PHOTOGRAPH'}</p>
-        <h1 class="result-title">Blue shirt.<br>Open court.</h1>
-        <div class="result-reason"><span>Visual scene · outdoors · tennis</span><b class="confidence">High confidence</b></div>
+      <div class="result-badges"><span class="strong-pill">✦ Best match</span>${video ? '<span class="time-pill">01:42</span>' : ''}</div>
+      <div class="hero-result-copy">
+        <small>${video ? 'The exact video moment' : 'The scene you described'}</small>
+        <h2>Blue shirt.<br>Open court.</h2>
+        <div><span>tennis outside · visual match</span><b>Open ↗</b></div>
       </div>
     </article>
-    <div class="section-head"><h2>More matches</h2><small>VIEW CONTACT SHEET →</small></div>
-    <div class="more-results">
-      ${memory('memory_snow_car_4k.webp', 'Winter drive', 'possible match', '02', video ? '00:36' : '')}
-      ${memory('memory_birthday_4k.webp', 'Birthday light', 'possible match', '03', video ? '02:18' : '')}
+    <div class="result-summary-card">
+      <span class="summary-orb ${video ? 'lilac' : 'cyan'}">${video ? '▶' : '✦'}</span>
+      <div><small>${video ? 'Best moment' : 'Why this matched'}</small><b>${video ? 'Play from the strongest scene.' : 'Blue clothing, an outdoor court, and tennis.'}</b></div>
+      <span class="summary-arrow">↗</span>
     </div>
+    <div class="result-filter-row"><span class="active">${video ? 'Videos' : 'All'}</span><span>${video ? 'Moments' : 'Photos'}</span><span>${video ? 'Longest' : 'Videos'}</span></div>
     ${nav('Memories')}
   </section>`;
 
 const viewer = () => `
-  <section class="screen full-bleed no-rail viewer-screen">
+  <section class="screen full-bleed no-dock viewer-screen">
     <img class="viewer-image" src="${A}memory_tennis_4k.webp" alt="Tennis memory">
-    <div class="viewer-toolbar"><span>←</span><span>↗</span></div>
-    <div class="viewer-caption">
-      <p class="eyebrow">BEST LOCAL MATCH / 01</p>
-      <h1 class="display">The<br>Saturday<br><em>match.</em></h1>
-      <div class="viewer-metadata">
-        <div><small>Confidence</small><b>HIGH</b></div>
-        <div><small>Moment</small><b>01:42</b></div>
-        <div><small>Evidence</small><b>VISUAL</b></div>
-      </div>
+    <div class="viewer-controls"><span>←</span><span>↗</span></div>
+    <div class="viewer-sheet">
+      <span class="strong-pill">✦ Best local match</span>
+      <h1>The Saturday<br><em>match.</em></h1>
+      <div class="viewer-stats"><span><small>Confidence</small><b>High</b></span><span><small>Moment</small><b>01:42</b></span><span><small>Evidence</small><b>Visual</b></span></div>
     </div>
   </section>`;
 
 const terms = (dark = false) => `
-  <section class="screen ${dark ? 'ink' : ''}">
-    ${masthead('Terms Intelligence', 'PRIVATE REVIEW<br>NOT LEGAL ADVICE')}
-    <div class="terms-cover">
-      <p class="eyebrow">AGREEMENT INTELLIGENCE / 02</p>
-      <h1 class="display">See beneath<br>the <em>fine print.</em></h1>
-      <p class="dek">Turn dense language into a clear, private decision.</p>
-      <div class="import-grid"><div><b>↗</b><small>Paste link</small></div><div><b>¶</b><small>Paste text</small></div><div><b>↑</b><small>Import file</small></div></div>
+  <section class="screen terms-screen ${dark ? 'midnight' : ''}">
+    ${topbar('Terms intelligence')}
+    <div class="terms-hero">
+      <div class="terms-bubbles" aria-hidden="true"><i>§</i><i></i><i></i></div>
+      <p class="kicker"><span></span> Clear answers, privately</p>
+      <h1>Fine print,<br><em>made human.</em></h1>
+      <p class="body-copy">Bring an agreement. Get the parts that matter, without sending it away.</p>
+      <div class="import-bubbles">
+        <div class="cyan"><b>↗</b><small>Paste link</small></div>
+        <div class="lilac"><b>¶</b><small>Paste text</small></div>
+        <div class="mint"><b>↑</b><small>Import file</small></div>
+      </div>
     </div>
-    <div class="primary-action"><b>ANALYZE AGREEMENT</b><span>↗</span></div>
-    ${privacyLedger(dark)}
+    ${action('Analyze agreement')}
+    ${privacyPill()}
     ${nav('Terms')}
   </section>`;
 
 const termsResult = () => `
-  <section class="screen">
-    ${masthead('Terms Intelligence', 'ANALYSIS 01<br>COMPLETE')}
-    <div class="edition-header"><p class="eyebrow">AGREEMENT HEALTH</p><h1 class="display">The verdict.</h1></div>
-    <div class="risk-hero"><div class="risk-ring"><span class="metric-number">58</span></div><div class="risk-copy"><p class="eyebrow">MODERATE / REVIEW</p><h2>A few clauses need attention.</h2><p>Renewal and dispute limits deserve a closer look.</p></div></div>
-    <div class="summary-slab"><p class="eyebrow">THE ONE-MINUTE READ</p><p class="quote">Renews annually. Cancellation is possible before billing; refunds are limited.</p></div>
-    <div class="disclosures">${['Important', 'Watch out', 'Good', 'Money', 'Cancellation', 'Privacy', 'Your rights'].map((x, i) => `<div class="disclosure"><span class="num">0${i + 1}</span><b>${x}</b><span>⌄</span></div>`).join('')}</div>
+  <section class="screen no-dock terms-result-screen">
+    ${topbar('Terms intelligence', 'Analysis ready')}
+    <div class="verdict-head"><div><p class="kicker"><span></span> Agreement health</p><h1>Here’s the<br><em>real story.</em></h1></div><span class="score-bubble"><b>58</b><small>Review</small></span></div>
+    <div class="risk-card"><span class="risk-face">~</span><div><small>Moderate attention</small><h2>A few clauses need a closer look.</h2><p>Renewal and dispute limits deserve your attention.</p></div></div>
+    <div class="summary-card"><span>✦</span><div><small>One-minute read</small><p>Renews annually. Cancel before billing; refunds are limited.</p></div></div>
+    <div class="disclosure-list">
+      ${[
+        ['!', 'Important', 'blush'], ['⌁', 'Watch out', 'lilac'], ['✓', 'Good', 'mint'],
+        ['$', 'Money', 'cyan'], ['×', 'Cancellation', 'blush'], ['◉', 'Privacy', 'lilac'], ['↗', 'Your rights', 'mint']
+      ].map(([icon, label, tone]) => `<div class="disclosure-row"><span class="${tone}">${icon}</span><b>${label}</b><i>⌄</i></div>`).join('')}
+    </div>
   </section>`;
 
 const activity = () => `
-  <section class="screen">
-    ${masthead('Intelligence Ledger', 'ACTIVITY<br>AUG 13')}
-    <div class="edition-header"><p class="eyebrow">A QUIET RECORD / LOCAL</p><h1 class="display">Activity.</h1><p class="dek">What Honorable understood, in chronological order.</p></div>
-    <div class="timeline">
+  <section class="screen activity-screen">
+    ${topbar('Private activity', 'Today')}
+    <div class="page-intro compact">
+      <span class="floating-glyph blush">↻</span>
+      <p class="kicker"><span></span> A quiet record</p>
+      <h1>Your recent<br><em>sparks.</em></h1>
+      <p class="body-copy">What Honorable understood, in one calm place.</p>
+    </div>
+    <div class="activity-list">
       ${[
-        ['TODAY', 'Tennis outside', '12 private matches found'],
-        ['TODAY', 'Subscription terms', 'Moderate agreement health'],
-        ['12 AUG', 'Library synchronized', '48 new memories indexed'],
-        ['11 AUG', 'Flight screenshot', 'Air Canada text matched']
-      ].map((x, i) => `<div class="timeline-row"><div class="date">${x[0]}</div><div class="event"><span class="index-no" style="margin:0 0 8px">0${i + 1}</span><b>${x[1]}</b><p>${x[2]}</p></div><div class="arrow">›</div></div>`).join('')}
+        ['✦', 'Tennis outside', '12 private matches found', 'Now', 'cyan'],
+        ['¶', 'Subscription terms', 'Moderate agreement health', 'Today', 'lilac'],
+        ['◉', 'Library refreshed', '48 new memories indexed', '12 Aug', 'mint'],
+        ['⌁', 'Flight screenshot', 'Air Canada text matched', '11 Aug', 'blush']
+      ].map(([icon, title, detail, date, tone]) => `<article class="activity-row"><span class="activity-icon ${tone}">${icon}</span><div><b>${title}</b><small>${detail}</small></div><time>${date}</time></article>`).join('')}
     </div>
     ${nav('Activity')}
   </section>`;
 
 const settingGroup = (label, items) => `
-  <div class="setting-group"><div class="setting-label">${label}</div>${items.map((x, i) => `<div class="setting-row"><span class="setting-icon">${String(i + 1).padStart(2, '0')}</span><div><b>${x[0]}</b><small>${x[1]}</small></div><span>›</span></div>`).join('')}</div>`;
+  <div class="setting-group"><div class="setting-label">${label}</div>${items.map(([icon, title, detail, tone]) => `
+    <div class="setting-row"><span class="setting-icon ${tone}">${icon}</span><div><b>${title}</b><small>${detail}</small></div><i>›</i></div>`).join('')}</div>`;
 
 const settings = () => `
-  <section class="screen">
-    ${masthead('Personal Edition', 'SETTINGS<br>VERSION 0.1')}
-    <div class="edition-header"><p class="eyebrow">SHAPE THE EXPERIENCE</p><h1 class="display">Settings.</h1></div>
-    <div class="upgrade-slab"><p class="eyebrow" style="color:var(--deep-navy)">HONORABLE PLUS / ANNUAL</p><h2>Elevate the private library.</h2><p>Advanced intelligence, same private foundation. →</p></div>
-    ${settingGroup('Privacy', [['Privacy promise', 'Everything stays local'], ['Permissions', 'Photos and videos']])}
-    ${settingGroup('Intelligence', [['AI & search', 'On-device processing'], ['Storage & index', '9,812 local memories']])}
-    ${settingGroup('Honorable', [['Appearance', 'Blueglass Editorial'], ['About', 'Version 0.1.0']])}
+  <section class="screen settings-screen">
+    ${topbar('Your space')}
+    <div class="settings-head"><div class="profile-bubble">H<span>✓</span></div><div><small>Built around you</small><h1>Settings</h1></div></div>
+    <div class="plus-card"><span class="plus-orb">+</span><div><small>Honorable Plus</small><h2>More private intelligence.</h2><p>Advanced tools. Same private foundation.</p></div><i>↗</i></div>
+    <div class="settings-stack">
+      ${settingGroup('Privacy', [['⌁', 'Privacy promise', 'Everything stays local', 'mint'], ['◉', 'Permissions', 'Photos and videos', 'cyan']])}
+      ${settingGroup('Intelligence', [['✦', 'AI & search', 'On-device processing', 'lilac'], ['▦', 'Storage & index', '9,812 local memories', 'blush']])}
+      ${settingGroup('Honorable', [['◐', 'Appearance', 'Soft cloud', 'cyan'], ['h', 'About', 'Version 0.1.0', 'mint']])}
+    </div>
     ${nav('Settings')}
   </section>`;
 
 const privacy = () => `
-  <section class="screen no-rail ink">
-    <header class="masthead"><div class="wordmark"><span class="monogram">H</span> THE PROMISE</div><div class="close-box">×</div></header>
-    <div class="promise-mark">H</div>
-    <p class="eyebrow" style="text-align:center">PRIVATE BY ARCHITECTURE / ALWAYS</p>
-    <h1 class="display privacy-title">Your memories<br><em>stay yours.</em></h1>
-    <p class="dek privacy-dek">Intelligence should not require a cloud copy of your life.</p>
-    <div class="node-grid">
-      <div class="privacy-node"><span class="index-no">01</span><b>Local AI</b></div>
-      <div class="privacy-node"><span class="index-no">02</span><b>Local OCR</b></div>
-      <div class="privacy-node"><span class="index-no">03</span><b>Local index</b></div>
-      <div class="privacy-node"><span class="index-no">04</span><b>No upload</b></div>
+  <section class="screen no-dock midnight privacy-screen">
+    ${modalHead('Our promise', 'mint')}
+    <div class="promise-orb"><i></i><span>⌁</span><b>100%</b><small>on this device</small></div>
+    <p class="kicker centered"><span></span> Private by architecture</p>
+    <h1>Your memories<br><em>stay yours.</em></h1>
+    <p class="body-copy centered-copy">Intelligence should never require a cloud copy of your life.</p>
+    <div class="promise-grid">
+      <div class="cyan"><span>✦</span><b>Local AI</b></div>
+      <div class="lilac"><span>¶</span><b>Local OCR</b></div>
+      <div class="mint"><span>◉</span><b>Local index</b></div>
+      <div class="blush"><span>×</span><b>No upload</b></div>
     </div>
-    <div class="local-note">◈ Photos, frames, and search text remain here</div>
+    <div class="safe-note promise-note"><span>✓</span><b>Your content stays here</b><small>Photos, frames and search text remain local</small></div>
   </section>`;
 
 const plus = () => `
-  <section class="screen no-rail plus-screen">
-    <header class="masthead"><div class="wordmark"><span class="monogram">H</span> PRIVATE EDITION</div><div class="close-box">×</div></header>
-    <p class="eyebrow" style="margin-top:27px">HONORABLE / PLUS / 2026</p>
-    <h1 class="display">More ways<br>to <em>understand.</em></h1>
-    <p class="dek" style="margin-top:15px">Advanced intelligence. The same private foundation.</p>
-    <div class="benefit-list">${['Advanced Memories AI', 'Advanced video search', 'Terms AI', 'No ads', 'Future intelligence'].map((x, i) => `<div class="benefit"><span>0${i + 1}</span>${x}</div>`).join('')}</div>
-    <div class="plans"><div class="plan"><small>Monthly</small><div class="plan-price">$5.99</div></div><div class="plan selected"><small>Annual · Selected</small><div class="plan-price">$39.99</div></div></div>
-    <div class="primary-action"><b>CONTINUE WITH ANNUAL</b><span>↗</span></div>
-    <div class="local-note">Preview only · store processing not configured</div>
+  <section class="screen no-dock midnight plus-screen">
+    ${modalHead('Honorable Plus', 'lilac')}
+    <div class="plus-intro">
+      <div class="plus-sculpture"><i></i><i></i><span>+</span></div>
+      <p class="kicker"><span></span> More ways to understand</p>
+      <h1>Go deeper.<br><em>Stay private.</em></h1>
+      <p class="body-copy">Advanced intelligence, built on the same private foundation.</p>
+    </div>
+    <div class="benefit-cloud">${['Advanced Memories AI', 'Video search', 'Terms AI', 'No ads', 'Future intelligence'].map((x, i) => `<span class="tone-${i + 1}">✓ ${x}</span>`).join('')}</div>
+    <div class="plan-bubbles"><div><small>Monthly</small><b>$5.99</b><span>per month</span></div><div class="selected"><small>Best value · Annual</small><b>$39.99</b><span>per year</span></div></div>
+    ${action('Continue with annual', 'plus-action')}
+    <p class="preview-note">Preview only · store processing not configured</p>
   </section>`;
 
 const indexing = () => `
-  <section class="screen no-rail indexing-screen">
-    ${masthead('Blueglass Intelligence', 'INDEX BUILD<br>IN PROGRESS')}
-    <p class="eyebrow" style="margin-top:56px">LOCAL INDEX / SAFE TO LEAVE</p>
-    <h1 class="display">Preparing<br>your <em>library.</em></h1>
-    <div class="progress-number">76%</div>
-    <div class="progress-track"><span></span></div>
-    <div class="progress-meta"><span>7,482 / 9,812</span><span>Photos complete</span></div>
-    <p class="dek" style="margin-top:31px">Representative video frames are next. Processing remains on this device.</p>
-    ${privacyLedger(false)}
+  <section class="screen no-dock indexing-screen">
+    ${topbar('Memory space', 'Working locally')}
+    <div class="index-sculpture"><i></i><i></i><i></i><span><b>76%</b><small>ready</small></span></div>
+    <p class="kicker centered"><span></span> Building your private index</p>
+    <h1>Your library is<br><em>waking up.</em></h1>
+    <p class="body-copy centered-copy">You can leave this screen. Honorable keeps preparing safely.</p>
+    <div class="progress-card"><div><span style="width:76%"></span></div><p><b>7,482 of 9,812</b><small>Photos complete · video frames next</small></p></div>
+    ${privacyPill()}
   </section>`;
 
 const empty = () => `
-  <section class="screen no-rail empty-screen">
-    ${masthead('Memory Search', 'RESULTS / 00<br>LOW CONFIDENCE')}
-    <div class="empty-zero">0</div>
-    <p class="eyebrow">NO CLEAR MATCH / YET</p>
-    <h1 class="display">Try another<br><em>detail.</em></h1>
-    <p class="dek">Add a place, color, date, or words visible in the image.</p>
-    <div class="empty-suggestions"><span class="tag">Add a date</span><span class="tag">Choose media</span><span class="tag">Add color</span></div>
-    <div class="primary-action" style="margin-top:auto"><b>REFINE THE SEARCH</b><span>↗</span></div>
+  <section class="screen no-dock empty-screen">
+    ${topbar('Memory search', 'No clear match')}
+    <div class="empty-sculpture"><i></i><i></i><span>⌕</span></div>
+    <p class="kicker centered"><span></span> Nothing clear yet</p>
+    <h1>Let’s try a<br><em>new detail.</em></h1>
+    <p class="body-copy centered-copy">Add a place, color, date, or words visible in the image.</p>
+    <div class="suggestion-cloud"><span class="cyan">＋ A date</span><span class="lilac">◉ Media type</span><span class="blush">● A color</span></div>
+    ${action('Refine the search', 'empty-action')}
+  </section>`;
+
+const failure = () => `
+  <section class="screen no-dock empty-screen failure-screen">
+    ${topbar('Memory search', 'Paused safely')}
+    <div class="empty-sculpture"><i></i><i></i><span>!</span></div>
+    <p class="kicker centered"><span></span> Your library is safe</p>
+    <h1>Something<br><em>tripped.</em></h1>
+    <p class="body-copy centered-copy">Honorable paused without uploading, deleting, or changing your media.</p>
+    <div class="safe-note failure-note"><span>✓</span><b>Nothing was changed</b><small>Close and return whenever you are ready</small></div>
   </section>`;
 
 const screens = {
+  'ios-01-home': () => '<section class="screen full-bleed no-rail"><img class="ios-source-preview" src="ios-home.svg" alt="iOS Honorable Home"></section>',
   '01-home': () => home(false),
   '02-memories': () => memories(false),
   '03-search-focus': searchFocus,
@@ -265,7 +329,8 @@ const screens = {
   '15-empty-search': empty,
   '16-dark-home': () => home(true),
   '17-dark-memories': () => memories(true),
-  '18-dark-terms-ai': () => terms(true)
+  '18-dark-terms-ai': () => terms(true),
+  '19-error-state': failure
 };
 
 document.querySelector('#screen').innerHTML = (screens[id] || screens['01-home'])();
